@@ -12,7 +12,7 @@ import clr
 clr.AddReference("IronPython.SQLite.dll")
 clr.AddReference("IronPython.Modules.dll")
 
-#Import io module for reading text files in UTF-8 encoding correctly
+#   Import io module for reading text files in UTF-8 encoding correctly
 import io
 
 #   Import your Settings class
