@@ -1,5 +1,39 @@
-News 1. Новости 1 - https://translate.google.com/#auto/ru/like%20from%20stack
-News 2. Новости 2 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate
-News 3. Новости 3 - https://github.com/dreamy-cat/8-Bit-Tea-Party
-News 4. Новости 4 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate/wiki/Creating-UI-Config-File
-News 5. Новости 5 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate/wiki
+Игромания онлайн: Valve заплатила 20 тысяч долларов за брешь с «бесплатными» играми - https://www.igromania.ru/news/78781/Valve_zaplatila_20_tysyach_dollarov_za_bresh_s_besplatnymi_igrami.html
+Игромания онлайн: Фил Спенсер считает, что стриминг не заменит PC и консоли - https://www.igromania.ru/news/78780/Fil_Spenser_schitaet_chto_striming_ne_zamenit_PC_i_konsoli.html
+Husband and wife ordered to pay $12m to Nintendo for running ROM sites | Eurogamer - https://www.eurogamer.net/articles/2018-11-13-husband-and-wife-must-pay-usd12m-to-nintendo-for-running-rom-sites
+Meduza: У «Яндекса» появились новый поиск, свои «Ответы» и дешевая колонка. Максимально коротко - https://meduza.io/paragraph/2018/11/19/u-yandeksa-poyavilis-novyy-poisk-svoi-otvety-i-deshevaya-kolonka-maksimalno-korotko
+Игромания онлайн: NVIDIA представила видеокарту Quadro RTX 4000 — Железные новости - https://www.igromania.ru/news/78771/NVIDIA_predstavila_videokartu_Quadro_RTX_4000.html
+iXBT.com: Активация режима трассировки лучей в игре Battlefield V катастрофически снижает производительность новых - https://www.ixbt.com/news/2018/11/14/battlefield-v-nvidia.html
+AMD пока не собирается поддерживать API DirectX Raytracing - https://www.ixbt.com/news/2018/11/12/amd-api-directx-raytracing.html
+Intel TDP Investigation: Violating Turbo Duration (Z390) - https://youtu.be/IBrumDWpl-c
+iXBT.com: Флагманский 64-ядерный процессор AMD Epyc нового поколения будет работать на частоте 2,35 ГГц - https://www.ixbt.com/news/2018/11/14/64-amd-epyc-2-35.html
+Российские пользователи теперь могут скачать хранимые в ВК данные | РОСКОМСВОБОДА - https://roskomsvoboda.org/43166/
+Ведомости: «Яндекс» начал удалять из поисковой выдачи ссылки на пиратские ресурсы - https://www.vedomosti.ru/technology/news/2018/11/16/786706-yandeks-nachal-udalyat-vidachi-ssilki-na
+Tproger: В Chrome добавят API для создания пользовательских веб-приложений - https://tproger.ru/news/google-web-apps/
+iXBT.com: Первые объёмные тесты видеокарты Radeon RX 590 показывают существенное превосходство новинки над Radeon RX 580 - https://www.ixbt.com/news/2018/11/13/radeon-rx-590-radeon-rx-580.html
+Игромания онлайн: AMD покажет новые игровые видеокарты во второй половине 2019 года - https://www.igromania.ru/news/78723/AMD_pokazhet_novye_igrovye_videokarty_vo_vtoroy_polovine_2019_goda.html
+Tproger: Intel представила Neural Compute Stick 2 - https://tproger.ru/news/intel-neural-compute-stick2/
+iXBT.com: В США iPhone X взорвался прямо в процессе обновления на iOS 12.1 - https://www.ixbt.com/news/2018/11/14/iphone-x-ios-12-1.html
+Appleinsider.ru: Новые компьютеры Mac обзавелись полезной возможностью - https://appleinsider.ru/macbook-air/novye-kompyutery-mac-obzavelis-poleznoj-vozmozhnostyu.html
+iXBT.com: Мини-ПК cirrus7 Nimbini 2.5 на однокристальной системе Intel Coffee Lake имеет пассивное охлаждение - https://www.ixbt.com/news/2018/11/13/cirrus7-nimbini-2-5-intel-coffee-lake.html
+Канобу: Игроки агрессивно настроены по отношению к Valve. А все из-за системы монетизации Artifact - https://kanobu.ru/news/igroki-agressivno-nastroenyi-po-otnosheniyu-k-valve-a-vse-iz-za-sistemyi-monetizatsii-artifact-408964/
+Игромания онлайн: Eurocom Tornado F7W — ноутбук с Core i9 9900K и 128 ГБ ОЗУ - https://www.igromania.ru/news/78721/Eurocom_Tornado_F7W-noutbuk_s_Core_i9_9900K_i_128_GB_OZU.html
+Appleinsider.ru: Apple решила заблокировать в России свой сервис для разработчиков - https://appleinsider.ru/app-store/apple-reshila-zablokirovat-v-rossii-odin-iz-svoix-servisov.html
+Игромания онлайн: Apple подтвердила, что чип T2 препятствует ремонту - https://www.igromania.ru/news/78753/Apple_podtverdila_chto_chip_T2_prepyatstvuet_remontu.html
+iXBT.com: Ускоритель Nvidia T4 ставит рекорды по скорости распространения на рынке - https://www.ixbt.com/news/2018/11/14/graficheskij-uskoritel-nvidia-t4-stavit-rekordy-po-skorosti-rasprostranenija-na-rynke.html
+Телеканал новостей 24: Кто такой Женьсюнь Хуан: как эмигранту удалось создать огромную корпорацию NVIDIA — Телеканал новостей 24 - https://24tv.ua/techno/ru/kto_takoj_zhensjun_huan_biografija_istorija_uspeha_sostojanie_ceo_nvidia_n1056111
+Игромания онлайн: Представлен геймпад для PS4 с возможностью кастомизации — Железные новости - https://www.igromania.ru/news/78829/Predstavlen_geympad_dlya_PS4_s_vozmozhnostyu_kastomizacii.html
+Игромания онлайн: Apple снова пытается убедить всех, что iPad Pro — это PC - https://www.igromania.ru/news/78890/Apple_snova_pytaetsya_ubedit_vseh_chto_iPad_Pro-yeto_PC.html
+Игромания онлайн: Карманную консоль Smach Z выпустят в будущем году - https://www.igromania.ru/news/78831/Karmannuyu_konsol_Smach_Z_vypustyat_v_buduschem_godu.html
+Meduza: Half-Life исполнилось 20 лет. Разработчики ее фанатского римейка показали, как выглядят последние уровни (впечатляюще!) - https://meduza.io/shapito/2018/11/19/half-life-ispolnilos-20-let-razrabotchiki-ee-fanatskogo-rimeyka-pokazali-kak-vyglyadyat-poslednie-urovni-vpechatlyayusche
+Ferra.ru: Акции NVIDIA пережили сильнейший спад за 10 лет - Ferra.ru - https://www.ferra.ru/ru/system/news/2018/11/20/nvidia-stock-drop-worst-10-years/
+Ferra.ru: Sony начнёт закрывать игровые сервера PlayStation 3 в январе 2019 года - Ferra.ru - https://www.ferra.ru/ru/games/news/2018/11/15/sony-playstation-3-game-servers-shut-down/
+Androidinsider.ru: Скачивать приложения для Android из сторонних источников стало безопаснее - https://androidinsider.ru/soft/skachivat-prilozheniya-dlya-android-iz-storonnih-istochnikov-stalo-bezopasnee.html
+iXBT.com: Поддержка клавиатуры и мыши заработала у всех пользователей Xbox One, опубликован список игр - https://www.ixbt.com/news/2018/11/15/podderzhka-klaviatury-i-myshi-zarabotala-u-vseh-polzovatelej-xbox-one-opublikovan-spisok-igr.html
+В YouTube появились бесплатные фильмы - https://www.iguides.ru/main/other/v_youtube_poyavilis_besplatnye_filmy/
+Игромания онлайн: Microsoft не уйдёт из России, но сменит валюту в своём магазине на доллары - https://www.igromania.ru/news/78861/Microsoft_ne_uydyot_iz_Rossii_no_smenit_valyutu_v_svoyom_magazine_na_dollary.html
+dtf.ru: В Fallout 76 одновременно запустили три ядерные ракеты — после этого сервер «упал» - https://dtf.ru/games/31743-v-fallout-76-odnovremenno-zapustili-tri-yadernye-rakety-posle-etogo-server-upal
+vc.ru: Microsoft начала продавать свои первые наушники — Surface Headphones - https://vc.ru/tech/51175-microsoft-nachala-prodavat-svoi-pervye-naushniki-surface-headphones
+Ferra.ru: День, когда Nintendo создала лучшего конкурента PlayStation и Xbox - Ferra.ru - https://www.ferra.ru/ru/techlife/news/2018/11/18/day-in-tech-history-november-18/
+iXBT.com: Очередное обновление для Windows 10 принесло новые проблемы - https://www.ixbt.com/news/2018/11/19/ocherednoe-obnovlenie-dlja-windows-10-prineslo-novye-problemy.html
+Tproger: JetBrains выпустила фреймворк Ktor - https://tproger.ru/news/jetbrains-ktor-1-0-release/
