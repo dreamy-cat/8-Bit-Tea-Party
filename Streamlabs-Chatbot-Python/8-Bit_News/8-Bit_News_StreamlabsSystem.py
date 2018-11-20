@@ -1,3 +1,5 @@
+# -*- coding: UTF-8 -*-
+
 #---------------------------
 #   Import Libraries
 #---------------------------
@@ -10,6 +12,9 @@ import clr
 clr.AddReference("IronPython.SQLite.dll")
 clr.AddReference("IronPython.Modules.dll")
 
+#Import io module for reading text files in UTF-8 encoding correctly
+import io
+
 #   Import your Settings class
 from Settings_Module import MySettings
 #---------------------------
@@ -19,7 +24,7 @@ ScriptName = "8-Bit Tea Party News"
 Website = "https://github.com/dreamy-cat/8-Bit-Tea-Party"
 Description = "'nn' command will pop a news from the News.txt (like from stack) in chat"
 Creator = "MustangDSG"
-Version = "1.0.0.0"
+Version = "0.0.0.16"
 
 #---------------------------
 #   Define Global Variables
@@ -45,6 +50,27 @@ def Init():
     return
 
 #---------------------------
+#   [Required] Send Message to Chat / Process messages
+#---------------------------
+def SendMessageToChat():
+    NEWS_FILENAME = "News.txt"
+    news_file = io.open(os.path.dirname(__file__)+"\\"+NEWS_FILENAME, "r", encoding="utf-8")
+    string_out = news_file.readline()
+    news_file.close()
+
+    with open(os.path.dirname(__file__)+"\\"+NEWS_FILENAME) as file:
+        lines = file.readlines()[1::] # all lines to keep except first
+
+    with open(os.path.dirname(__file__)+"\\"+NEWS_FILENAME, 'w') as file:
+        file.writelines(lines)
+
+    if string_out == "":
+        NO_NEWS = u"Новостей больше нет"
+        string_out = NO_NEWS
+
+    return string_out
+
+#---------------------------
 #   [Required] Execute Data / Process messages
 #---------------------------
 def Execute(data):
@@ -54,7 +80,7 @@ def Execute(data):
     #   Check if the propper command is used, the command is not on cooldown and the user has permission to use the command
     if data.IsChatMessage() and data.GetParam(0).lower() == ScriptSettings.Command and not Parent.IsOnUserCooldown(ScriptName,ScriptSettings.Command,data.User) and Parent.HasPermission(data.User,ScriptSettings.Permission,ScriptSettings.Info):
         Parent.BroadcastWsEvent("EVENT_MINE","{'show':false}")
-        Parent.SendStreamMessage(ScriptSettings.Response)    # Send your message to chat
+        Parent.SendStreamMessage(SendMessageToChat())    # Send your message to chat
         Parent.AddUserCooldown(ScriptName,ScriptSettings.Command,data.User,ScriptSettings.Cooldown)  # Put the command on cooldown
 
     

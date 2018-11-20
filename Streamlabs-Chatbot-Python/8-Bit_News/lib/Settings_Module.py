@@ -1,3 +1,5 @@
+# -*- coding: UTF-8 -*-
+
 import os
 import codecs
 import json
@@ -10,7 +12,7 @@ class MySettings(object):
 		except:
 			self.Command = "nn"
 			self.Response = "News!"
-			self.Cooldown = 10
+			self.Cooldown = 5
 			self.Permission = "moderator"
 			self.Info = ""
 

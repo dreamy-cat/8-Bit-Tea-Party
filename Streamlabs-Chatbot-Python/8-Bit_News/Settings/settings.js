@@ -1,7 +1,7 @@
 ﻿var settings = {
-  "Command": "nn",
+  "Command": "nnn",
   "Permission": "moderator",
   "Info": "",
-  "Cooldown": 10.0,
+  "Cooldown": 5.0,
   "Response": "News!"
 };
