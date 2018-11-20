@@ -1,3 +1,3 @@
 # Streamlabs-Chatbot-Python
 
-Python Scripts for the Streamlabs Chatbot.
+Python Automation Scripts for Streamlabs Chatbot - https://streamlabs.com/chatbot
