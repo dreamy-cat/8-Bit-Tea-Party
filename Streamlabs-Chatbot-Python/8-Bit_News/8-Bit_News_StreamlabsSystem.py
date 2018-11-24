@@ -46,7 +46,7 @@ def Init():
         os.makedirs(directory)
 
     #   Load settings
-    SettingsFile = os.path.join(os.path.dirname(__file__), "Settings\settings.json")
+    SettingsFile = os.path.join(os.path.dirname(__file__), "Settings\\settings.json")
     ScriptSettings = MySettings(SettingsFile)
     return
 
