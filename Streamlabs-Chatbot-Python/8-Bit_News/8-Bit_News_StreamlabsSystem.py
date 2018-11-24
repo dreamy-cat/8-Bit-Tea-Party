@@ -33,7 +33,8 @@ global SettingsFile
 SettingsFile = ""
 global ScriptSettings
 ScriptSettings = MySettings()
-NewsFile = os.path.dirname(__file__)+"\\News\\News.txt"
+NewsFile = os.path.dirname(__file__)+"\\News\\News.txt" #path to the news file
+PoppedNewsFile = os.path.dirname(__file__)+"\\News\\Popped_news.txt" #path to the file with news which was popped
 
 #---------------------------
 #   [Required] Initialize Data (Only called on load)
@@ -53,10 +54,15 @@ def Init():
 #---------------------------
 #   [Required] Send Message to Chat / Process messages
 #---------------------------
-def SendNewsToChatFromNewsFile(NewsFile=""):
+def SendNewsToChatFromNewsFile(NewsFile = "", PoppedNewsFile = ""):
     OpenedNewsFile = io.open(NewsFile, "r", encoding="utf-8")
-    NewsSend = OpenedNewsFile.readline()
+    NewsToSend = OpenedNewsFile.readline()
     OpenedNewsFile.close()
+
+    if NewsToSend != "":
+        OpenedPoppedNewsFile = io.open(PoppedNewsFile, "a", encoding="utf-8")
+        OpenedPoppedNewsFile.writelines(NewsToSend)
+        OpenedPoppedNewsFile.close()
 
     with open(NewsFile) as file:
         lines = file.readlines()[1::] # all lines to keep except first
@@ -64,11 +70,11 @@ def SendNewsToChatFromNewsFile(NewsFile=""):
     with open(NewsFile, 'w') as file:
         file.writelines(lines)
 
-    if NewsSend == "":
+    if NewsToSend == "":
         NO_NEWS = u"Новостей больше нет"
-        NewsSend = NO_NEWS
+        NewsToSend = NO_NEWS
 
-    return NewsSend
+    return NewsToSend
 
 #---------------------------
 #   [Required] Execute Data / Process messages
@@ -80,7 +86,7 @@ def Execute(data):
     #   Check if the propper command is used, the command is not on cooldown and the user has permission to use the command
     if data.IsChatMessage() and data.GetParam(0).lower() == ScriptSettings.Command and not Parent.IsOnUserCooldown(ScriptName,ScriptSettings.Command,data.User) and Parent.HasPermission(data.User,ScriptSettings.Permission,ScriptSettings.Info):
         Parent.BroadcastWsEvent("EVENT_MINE","{'show':false}")
-        Parent.SendStreamMessage(SendNewsToChatFromNewsFile(NewsFile))    # Send news to chat
+        Parent.SendStreamMessage(SendNewsToChatFromNewsFile(NewsFile, PoppedNewsFile))    # Send news to chat
         Parent.AddUserCooldown(ScriptName,ScriptSettings.Command,data.User,ScriptSettings.Cooldown)  # Put the command on cooldown
 
     
