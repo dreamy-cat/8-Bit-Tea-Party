@@ -24,7 +24,7 @@ ScriptName = "8-Bit Tea Party News"
 Website = "https://github.com/dreamy-cat/8-Bit-Tea-Party"
 Description = "'nn' command will pop a news from the News.txt (like from stack) in chat"
 Creator = "MustangDSG"
-Version = "0.0.1.7"
+Version = "0.0.1.8"
 
 #---------------------------
 #   Define Global Variables
