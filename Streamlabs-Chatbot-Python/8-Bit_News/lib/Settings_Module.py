@@ -12,7 +12,7 @@ class MySettings(object):
 		except:
 			self.Command = "nn"
 			self.Response = "News!"
-			self.Cooldown = 5
+			self.Cooldown = 3
 			self.Permission = "moderator"
 			self.Info = ""
 
