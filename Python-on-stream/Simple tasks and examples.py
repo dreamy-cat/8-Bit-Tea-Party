@@ -1131,3 +1131,194 @@ print("Размеры gif-файла:", width, height)
 
 #Оба значения равны 1
 
+# Вещание 8. Работа с файлами. Теоретическая часть.
+print("\nStream 8.\n")
+file1 = open("Stream.txt", "wt")
+str1 = "Hello World!"
+print("Writing simple string to file and part of string.")
+i1 = file1.write(str1)
+print("\nUsing operator print to write file.", "Hello World!", file=file1, sep=' - ', end='\n')
+i2 = file1.write(str1[3:3+7])
+print("Actaul bytes written to text file:", i1, i2)
+file1.close()
+file1 = open("Stream.txt", "rt")
+str2 = file1.read(13); str3 = file1.readline()
+print("Reading text file:\n", str2); print("Reading line from file:\n", str3)
+file1.close()
+file1 = open("Stream.txt", "rt")
+print("Reading file with iterator.")
+for str4 in file1:
+	print(str4, end='')
+file1.close()
+file2 = open("Stream.bin", "wb")
+data = bytes(range(0,8))
+print("\nBinary data:", data, "and length", len(data))
+i3 = file2.write(data)
+print("Actual bytes written to binary file:", i3)
+file2.close()
+with open("Stream.bin", "rb") as file2:
+	file2.seek(4, 0)
+	print("Seek position 4 in binary file:", file2.tell())
+	data_r = file2.read()
+	print("Reading data from binary file:", data_r, "and length", len(data_r))
+import csv
+colors = ["red", "green", "blue"]
+with open("Stream.csv", "wt") as file_csv:
+	print("Write data to CSV file from list.")
+	csv_w = csv.writer(file_csv)
+	csv_w.writerows(colors)
+with open("Stream.csv", "rt") as file_csv:
+	csv_r = csv.reader(file_csv)
+	csv_rows = [r for r in csv_r]
+	print("Read data from CSV file to list:", csv_rows)
+with open("Stream.csv", "wt") as file_csv:
+	colors = [{"red" : "1", "green" : "2", "blue" : "3"}, {"red" : "4", "green" : "5", "blue" : "6"}]
+	print("Write dictionary to file CSV:", colors)
+	csv_dw = csv.DictWriter(file_csv, ["red", "green", "blue"])
+	csv_dw.writeheader()
+	csv_dw.writerows(colors)
+with open("Stream.csv", "rt") as file_csv:
+	csv_dr = csv.DictReader(file_csv)
+	colors_r = [r for r in csv_dr]
+	print("Reading from CSV file dictionary:", colors_r)
+xml_f = '''<?xml version="1.0"?>
+<menu>
+ <breakfast hours="7-11">
+  <item drink="coffee">cup</item>
+  <item food="bread">slice</item>
+ </breakfast>
+ <launch hours="11-3">
+  <item drink="tea">cup</item>
+  <item food="borsh">dish</item>
+ </launch>
+</menu>'''
+import xml.etree.ElementTree as ET
+print("Source of XML string:", xml_f)
+menu_root = ET.fromstring(xml_f)
+print("Root element in XML:", menu_root)
+print("All elements in XML:")
+for e in menu_root:
+	print("Tag:", e.tag, "attributes:", e.attrib)
+	for e1 in e:
+		print("\tTag:", e1.tag, "attributes", e1.attrib)
+print("Elements in menu root:", len(menu_root), "elements in item menu", len(menu_root[0]))
+json_f = '''menu = \
+{
+	"breakfast": {
+	"hours": "7-11"
+	"items": {
+		"coffee": "cup",
+		"bread": "slice"
+		}
+	}
+}
+'''
+import json
+print("JSON string.", json_f)
+menu = json.dumps(json_f)
+print("JSON object from string:", menu)
+obj_json = json.loads(menu)
+print("JSON from object", obj_json)
+import datetime
+str_dt = str(datetime.datetime.utcnow())
+print("Date and time as string:", str_dt)
+print("Date and time as json object:", json.dumps(str_dt))
+import configparser
+#[settings]
+	#key = value
+import pickle
+class my_time():
+	def __str__(self):
+		now_t = datetime.datetime.utcnow()
+		print("Date and time as string:", now_t)
+		pickle_dt = pickle.dumps(now_t)
+		print("Date and time as pickle object:", pickle_dt)
+		now_tp = pickle.loads(pickle_dt)
+		print("Date and time after pickle:", now_tp)
+		return str(now_tp)
+obj_t = my_time(); print(str(obj_t))
+obj_p1 = pickle.dumps(obj_t); print("Dumps object pickle:", obj_p1)
+obj_t2 = pickle.loads(obj_p1); print("After loads pickle:", str(obj_t2))
+
+# Вещание 8. Практическая часть по работе с файлами.
+
+divider="-------------------------------------------------------------"
+print("Вывод результатов упражнений к 8 главе.")
+print(divider)
+
+# Задание 1.
+# Присвойте строку 'This is a test of the emergency text system' переменной test1
+# и запишите переменную test1 в файл с именем test.txt.
+
+test1 = 'This is a test of the emergency text system'
+test_file = open('test.txt', 'wt')
+test_file.write(test1)
+test_file.close()
+
+# Задание 2.
+# Откройте файл test.txt и считайте его содержимое в строку test2. Совпадают
+# ли строки test1 и test2?
+
+with open('test.txt', 'rt') as test_file2:
+	lines = test_file2.readlines()
+print(lines)
+print(divider)
+
+# Задание 3.
+# Сохраните следующие несколько строк в файл books.csv. Обратите внимание
+# на то, что, если поля разделены запятыми, вам нужно заключить поле в кавычки,
+# если оно содержит запятую:
+# author,book
+# J R R Tolkien,The Hobbit
+# Lynne Truss,"Eats, Shoots & Leaves"
+
+import csv
+
+books_dict = [
+			{'author' : 'JRR Tolkien', 'book' : 'The Hobbit'},
+			{'author' : 'Lynne Truss', 'book' : 'Eats, Shoots & Leaves'},
+			]
+with open('books.csv', 'wt') as file_output:
+	cout = csv.DictWriter(file_output, ['author', 'book'])
+	cout.writeheader()
+	cout.writerows(books_dict)
+
+# Задание 4.
+# Используйте модуль csv и его метод DictReader, чтобы считать содержимое фай-
+# ла books.csv в переменную books. Выведите на экран значения переменной books.
+# Обработал ли метод DictReader кавычки и запятые в заголовке второй книги?
+
+with open('books.csv', 'rt') as file_input:
+	cin = csv.DictReader(file_input)
+	books = [row for row in cin]
+
+print (books)
+print(divider)
+
+# Задание 5.
+# Создайте CSV-файл books.csv и запишите его в следующие строки:
+# title,author,year
+# The Weirdstone of Brisingamen,Alan Garner,1960
+# Perdido Street Station,China Miéville,2000
+# Thud!,Terry Pratchett,2005
+# The Spellman Files,Lisa Lutz,2007
+# Small Gods,Terry Pratchett,1992
+
+books_dict2 = [
+			{'title' : 'The Weirdstone of Brisingamen', 'author' : 'Alan Garner', 'year' : '1960'},
+			{'title' : 'Perdido Street Station', 'author' : 'China Miéville', 'year' : '2000'},
+			{'title' : 'Thud!', 'author' : 'Terry Pratchett', 'year' : '2005'},
+			{'title' : 'The Spellman Files', 'author' : 'Lisa Lutz', 'year' : '2007'},
+			{'title' : 'Small Gods', 'author' : 'Terry Pratchett', 'year' : '1992'},
+			]
+
+with open('books2.csv', 'wt') as file_output:
+	cout = csv.DictWriter(file_output, ['title', 'author', 'year'])
+	cout.writeheader()
+	cout.writerows(books_dict2)
+
+
+
+
+
+
