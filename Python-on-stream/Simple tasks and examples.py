@@ -1240,7 +1240,87 @@ obj_t = my_time(); print(str(obj_t))
 obj_p1 = pickle.dumps(obj_t); print("Dumps object pickle:", obj_p1)
 obj_t2 = pickle.loads(obj_p1); print("After loads pickle:", str(obj_t2))
 
-# Вещание 8. Практическая часть по работе с файлами.
+# Вещание 8-2. Работа с БД. Теоретическая часть.
+print("\nStream 8.\n")
+import sqlite3
+conn_m = sqlite3.connect("Stream.db")
+curs_m = conn_m.cursor()
+curs_m.execute('''CREATE TABLE colors (color VARCHAR(8) PRIMARY KEY, value INT)''')
+curs_m.execute('''INSERT INTO colors VALUES("red", 1)''')
+curs_m.execute('''INSERT INTO colors VALUES("green", 2)''')
+curs_m.execute('''SELECT * FROM colors''')
+print("All data in table 'colors':", curs_m.fetchall())
+curs_m.execute('''SELECT * FROM colors ORDER BY color''')
+print("All colors in table by order:", curs_m.fetchall())
+curs_m.execute('''SELECT * FROM colors ORDER BY value DESC''')
+print("All colors in table by order and descending:", curs_m.fetchall())
+curs_m.execute('''SELECT * FROM colors WHERE value=2''')
+print("Select green color in table by value:", curs_m.fetchall())
+curs_m.execute('''DROP TABLE colors''')
+conn_m.commit()
+curs_m.close()
+conn_m.close()
+import sqlalchemy as SA
+conn_a = SA.create_engine("sqlite://")
+print(conn_a.execute('''CREATE TABLE colors (color VARCHAR(8) PRIMARY KEY, value INT)'''))
+conn_a.execute('''INSERT INTO colors VALUES("red", 1)''')
+conn_a.execute('''INSERT INTO colors VALUES("green", 2)''')
+rows = conn_a.execute('''SELECT * FROM colors''')
+print("All colors in table colors:")
+for r in rows:
+	print(r)
+meta_data = SA.MetaData()
+colors = SA.Table("colors", meta_data, SA.Column('color', SA.String, primary_key=True), SA.Column('value', SA.Integer))
+meta_data.create_all(conn_a)
+conn_a.execute(colors.insert(("blue", 3)))
+meta_r = conn_a.execute(colors.select())
+rows = meta_r.fetchall()
+print("All rows in colors table using SQLAlchemy:", rows)
+'''
+from sqlalchemy.ext.declarative import declarative_base
+conn_o = SA.create_engine("sqlite:///colors.db")
+color_base = declarative_base()
+class Colors(color_base):
+	__tablename__ = 'colors'
+	color = SA.Column('color', SA.String, primary_key=True)
+	value = SA.Column('value', SA.Integer)
+	def __init__(self, color, value):
+		self.color = color
+		self.value = value
+	def __repr__(self):
+		return "<Colors({}, {})>".format(self.color, self.value)
+color_base.metadata.create_all(conn_o)
+cl_r = Colors("red", 1); cl_g = Colors("green", 2); cl_b = Colors("blue", 3);
+print("All colors in objects:", cl_r, cl_g, cl_b)
+from sqlalchemy.orm import sessionmaker
+Session = sessionmaker(bind=conn_o)
+sess1 = Session();
+sess1.add_all([cl_r, cl_g, cl_b])
+sess1.commit()
+'''
+import dbm
+db1 = dbm.open("colors", "c")
+db1["red"] = "1"; db1["green"] = "2";
+print("Elements in DBM:", db1["red"], db1["green"], "length", len(db1))
+db1.close()
+db1 = dbm.open("colors", "c")
+print("Elements saved in DBM:", db1["red"], db1["green"], "length", len(db1))
+db1.close()
+import redis
+conn_r = redis.Redis()
+print("All keys in Redis:", conn_r.keys("*"))
+conn_r.mset({"red": "1", "green": "2", "blue": "3",})
+conn_r.delete("blue"); conn_r.incr("green")
+print("All values in Redis:", conn_r.mget(["red", "green", "blue"]))
+conn_r.lpush("yellow", "orange")
+print("Index after yellow:", conn_r.lindex("yellow", 1))
+conn_r.hmset("color", {"red": "1", "green": "2"})
+print("All keys in hash:", conn_r.hkeys("color"))
+print("All values in hash:", conn_r.hvals("color"))
+conn_r.sadd("one", "two", "three")
+print("Members in set:", conn_r.smembers("one"), "and set size", conn_r.scard("one"))
+
+# Вещание 8-1. Практическая часть по работе с файлами.
 
 divider="-------------------------------------------------------------"
 print("Вывод результатов упражнений к 8 главе.")
@@ -1317,8 +1397,98 @@ with open('books2.csv', 'wt') as file_output:
 	cout.writeheader()
 	cout.writerows(books_dict2)
 
+# Вещание 8-2. Работа с БД. Практическая часть.
 
+# Задание 6.
+# Используйте модуль sqlite3, чтобы создать базу данных SQLite books.db и таб­-
+# лицу books, содержащую следующие поля: title (text), author (text) и year
+# (integer).
 
+import sqlite3
 
+conn = sqlite3.connect('books.db')
+curs = conn.cursor()
+curs.execute("""DROP TABLE IF EXISTS books""")  
+#эта строчка нужна, чтоб не удалять каждый раз таблицу вручную, т.к. с первого раза у меня не получается все сделать верно
+curs.execute("""CREATE TABLE IF NOT EXISTS books (
+	title TEXT,
+	author TEXT,
+	year INTEGER
+	) """)
+
+# Задание 7.
+# Считайте данные из файла books.csv и добавьте их в таблицу book.
+
+with open('books2.csv', 'rt') as file_input2:
+	cin2 = csv.DictReader(file_input2)
+	values_to_base = [(i['title'], i['author'], i['year']) for i in cin2]
+
+curs.executemany("INSERT INTO books VALUES (?,?,?)", values_to_base)
+#В учебнике про следующую строчку ни слова, а без нее запись в базу не произойдет.
+conn.commit()
+
+# Задание 8.
+# Считайте и выведите на экран графу title таблицы book в алфавитном порядке.
+
+print("Вывод данных из таблицы по графе title в алфавитном порядке:")
+curs.execute('SELECT title FROM books ORDER BY title ASC')
+print(curs.fetchall())
+print(divider)
+
+# Задание 9.
+# Считайте и выведите на экран все графы таблицы book в порядке публикации.
+
+print("Вывод данных из таблицы по всем графам в порядке публикации:")
+curs.execute('SELECT * FROM books ORDER BY year ASC')
+print(curs.fetchall())
+print(divider)
+
+# Задание 10.
+# Используйте модуль sqlalchemy, чтобы подключиться к базе данных sqlite3
+# books.db, которую вы создали в упражнении 6. Как и в упражнении 8, считайте
+# и выведите на экран графу title таблицы book в алфавитном порядке.
+
+import sqlalchemy as sa
+
+conn2 = sa.create_engine('sqlite:///books.db')
+titles_from_base = conn2.execute('SELECT title FROM books ORDER BY title ASC')
+print("Вывод через просто print покажет объект:", titles_from_base)
+print("Для вывода всех значений нужен итератор:", end=' ')
+for rows in titles_from_base:
+	print(rows, end=' ')
+print(divider)
+
+# Задание 11.
+# Установите сервер Redis и библиотеку Python redis (с помощью команды pip
+# install redis) на свой компьютер. Создайте хеш redis с именем test , содержащий
+# поля count (1) и name ('Fester Bestertester'). Выведите все поля хеша test.
+
+# Примечание:
+# Нужно еще и сам redis сервер установить, иначе интерпретатор
+# будет ругаться на невозможность подключения.
+
+import redis
+
+conn3 = redis.Redis('localhost')
+conn3.hmset('test', {'count' : '1', 'name' : 'Fester Bestertester'})
+print("Вывод хэша Redis:", conn3.hmget('test', 'count', 'name'))
+print(divider)
+
+# Задание 12.
+# Увеличьте поле count хеша test и выведите его на экран.
+
+conn3.mset({"counter": "1", "name": "Fester"})
+conn3.incr("counter")
+print("All values hash Redis:", conn3.mget(["counter", "name"]))
+
+# Примечание:
+# Забавно то, что написано "увеличьте", хотя в учебнике указано только то, что
+# значения хэша могут содержать только строки. Тогда либо нужно прописать
+# отдельно перевод 1 из строку в инт, увеличение на некоторое число, а потом
+# перевести обратно в строку и вписать в хэш. Либо сделать просто вручную.
+
+# Финальная часть.
+curs.close()
+conn.close()
 
 

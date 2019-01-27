@@ -44,6 +44,3 @@ while counter < counter_limit:
 	if items:
 		health += items[-1]
 	counter += 1
-
-
-
