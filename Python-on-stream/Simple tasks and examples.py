@@ -1554,13 +1554,169 @@ def part_09_practice():
 	# http://localhost:5000/?arg1=box&arg2=10&arg3=green
 	pass
 
-# MAIN
-
-def part_10_theory():
-	print("Stream 10. System process, threads and date.\n")
+def delay(id):
+	import os, time
+	print("Main process id %i, a delay process id %s." % (id, os.getpid()))
+	time.sleep(0.1)
 	pass
 
-part_10_theory()
+def part_10_theory():
+	print("Stream 10. System processes, files, date and time.\n")
+	import os, shutil
+	file1 = open("text_1.txt", "wt")
+	str1 = "Writing string to text..."
+	print(str1); print(str1, file=file1)
+	file1.close()
+	print("Verify if text file exists,", os.path.exists("text_1.txt"))
+	print("Verify if 'text_1.txt' is a file,", os.path.isfile("text_1.txt"))
+	print("Verify if 'src' is a directory,", os.path.isdir("src"))
+	shutil.copy("text_1.txt", "text_2.txt")
+	print("Verify if copied file 'text_2.txt' exists,", os.path.exists("text_2.txt"))
+	if os.path.exists("text_3.txt"):
+		print("File 'text_3.txt' already exists, remove the old copy.")
+		os.remove("text_3.txt")
+	os.rename("text_2.txt", "text_3.txt")
+	print("Verify if renamed file 'text_3.txt' exists.", os.path.exists("text_3.txt"))
+	# os.link(), os.symlink(), os.chmod('text_3.txt', 0o400), os.chown('text_3.txt', uid, gid)
+	print("Absolute path of 'text_3.txt':", os.path.abspath("text_3.txt"))
+	if os.path.exists("tmp"):
+		os.rmdir("tmp")
+		# use shutil.rmtree() for non empty directory
+		print("Remove and verify if directory 'tmp' exists,", os.path.exists("tmp"))
+	os.mkdir("tmp")
+	print("Make and verify if directory 'tmp' exists,", os.path.isdir("tmp"))
+	print("List of current directory:", os.listdir("."))
+	os.chdir("src")
+	print("Changing current directory to 'src' and file list:", os.listdir("."))
+	os.chdir("..")	
+	print("Back to project directory:", os.listdir("."))
+	import subprocess, multiprocessing, time
+	print("Starting new process...")
+	if __name__ == '__main__':
+		prc = multiprocessing.Process(target=delay, args=([os.getpid()]))
+		prc.start()
+		time.sleep(1)
+		prc.terminate()
+	import calendar, datetime, time
+	from datetime import date
+	print("Is, 1900, 1996, 2004 leap:", calendar.isleap(1900), calendar.isleap(1996), calendar.isleap(2004))
+	summer = date(2019, 6, 1)
+	print("Summer as date object:", summer)
+	print("Summer year %i, month %i and day %i." % (summer.year, summer.month, summer.day))
+	print("Formatted summer date,", summer.isoformat())
+	print("Today is", date.today())	
+	print("Tomorrow will be", date.today() + datetime.timedelta(days=1))
+	print("Yesterday was ", date.today() - datetime.timedelta(days=1))
+	dinner = datetime.time(20, 30, 3)
+	print("Time for dinner:", dinner.hour, "hours", dinner.minute, "minutes and", dinner.second, "seconds.")
+	print("ISO formatted time for dinner,", datetime.datetime.now().isoformat())
+	print("Combine date and time objects, today's dinner:", datetime.datetime.combine(date.today(), dinner))
+	now = time.time()
+	print("Now from module:", time.ctime(now))
+	local_now = time.localtime(now)
+	print("Local time for now:", time.localtime(now))
+	time_frm = "Today is %A, %B %d, %Y, local time: %I:%M:%S%p."
+	print("Date and time with our format:", time.strftime(time_frm, local_now))
+	pass
+
+def count():
+	import time, random, datetime
+	time.sleep(random.randint(1, 2))
+	print("Counter:", datetime.datetime.now(), '\n')
+	#вывод потоков будет в самом конце консоли
+	pass
+
+def part_10_practice():
+	divider="-------------------------------------------------------------"
+	print("Вывод результатов упражнений к 10 главе.")
+	print(divider)
+
+	# Задание 1.
+	# Запишите текущие дату и время как строку в текстовый файл today.txt.
+	# если написать просто 'import datetime', то скрипт будет выдавать ошибку
+	from datetime import datetime
+	with open('today.txt', 'wt') as today_file:
+		current_date=str(datetime.now())
+		print("1) Текущая дата, записываемая в файл:", current_date)
+		today_file.write(current_date)
+	print(divider)
+
+	# Задание 2.
+	# Прочтите текстовый файл today.txt и разместите данные в строке today_string.
+	with open('today.txt', 'rt') as today_file:
+		today_string = today_file.read()
+		print("2) Дата из файла:", today_string)
+	print(divider)
+
+	# Задание 3.
+	# Разберите дату из строки today_string.
+	get_date = datetime.strptime(today_string, '%Y-%m-%d %H:%M:%S.%f')
+	print("3) Преобразуем строку в дату по шаблону: ", get_date)
+	print(divider)
+
+	# Задание 4.
+	# Выведите на экран список файлов текущего каталога.
+	import os
+	print("4) Вывод списка файлов и папок текущего каталога:")
+	print("Текущий каталог:", os.getcwd())
+
+	# Далее 2 варианта вывода информации:
+	# Первый, вывод через запятую сплошной строкой:
+	# print("Содержимое каталога:\n", os.listdir(path='.'))
+	# Второй, построчным списком (занимает много вертикального пространства):
+	for item in os.listdir(path='.'):
+		print(item)
+	print(divider)
+
+	# Задание 5.
+	# Выведите на экран список файлов родительского каталога.
+	print("5) Вывод списка файлов и папок родительского каталога:")
+	print(os.listdir(path='..'))
+	# Примечание: в консоли sublime-text в выводе показываются файлы и папки
+	# родительского каталога, как и ожидается, а вот в консоли linux-а, уже на уровень выше.
+	# Модуль os работает в разных средах по разному и по уму-то нужно
+	# писать сначала проверку на тип системы и отдельные куски кода под
+	# конкретный вариант.
+	print(divider)
+
+	# Задание 6.
+	# Используйте модуль multiprocessing, чтобы создать три отдельных процесса.
+	# Заставьте каждый из них ждать случайное количество секунд (от одной до пяти),
+	# вывести текущее время и завершить работу.
+	import multiprocessing, time, random
+	print("6) Вывод через multiprocessing:")
+	if __name__ == '__main__':
+		for i in range(3):
+			proc = multiprocessing.Process(target=count)
+			proc.start()
+			time.sleep(3)
+			proc.terminate()
+	print(divider)
+
+	# Задание 7.
+	# Создайте объект date, содержащий дату вашего рождения.
+	from datetime import date
+	birthday = date(1956, 1, 31)
+	print("7) Дата рождения Гвидо Ван Россума:", birthday)
+	print(divider)
+
+	# Задание 8.
+	# В какой день недели вы родились?
+	import calendar
+	from datetime import timedelta
+	print("8) День рождения Гвидо Ван Россума:",calendar.day_name[birthday.weekday()])
+	print(divider)
+
+	# Задание 9.
+	# Когда вам будет (или уже было) 10 000 дней от роду?
+	inc_days = birthday + timedelta(days=10000)
+	print("9) День, когда Гвидо Ван Россуму будет 10 000 дней от роду:", inc_days)
+	pass
+
+# MAIN
+
+part_10_practice()
+
 
 
 
