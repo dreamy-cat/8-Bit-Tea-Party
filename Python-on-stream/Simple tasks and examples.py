@@ -1713,9 +1713,11 @@ def part_10_practice():
 	print("9) День, когда Гвидо Ван Россуму будет 10 000 дней от роду:", inc_days)
 	pass
 
-# MAIN
+#MAIN
 
 part_10_practice()
+# part_11_1_theory()
+
 
 
 
