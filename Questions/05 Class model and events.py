@@ -1,4 +1,5 @@
-# 8-Bit Tea Party.
+# Простой класс модели для условной игры с главным циклом и событиями.
+# Вещание на 8-Bit Tea Party.
 
 import sys
 import string
