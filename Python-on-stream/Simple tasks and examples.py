@@ -1713,11 +1713,129 @@ def part_10_practice():
 	print("9) День, когда Гвидо Ван Россуму будет 10 000 дней от роду:", inc_days)
 	pass
 
+def add_colors(colors, queue):
+	for color in colors:
+		print("Adding color %s to queue." % color)
+		queue.put(color)
+	pass
+
+def set_color(queue):
+	while True:
+		color = queue.get()
+		print("Setting color %s from queue." % color)
+		queue.task_done()
+		sys.stdout.flush()
+	pass
+
+def send_colors(colors, queue):
+	import time
+	for color in colors:
+		print("Sending color", color, "to queue.")
+		time.sleep(1)
+		queue.put(color)
+	pass
+
+def receive_colors(queue):
+	import time
+	while True:
+		time.sleep(2)
+		color = queue.get()
+		print("Receiving color", color, "from queue.")
+		queue.task_done()
+	pass
+
+def part_11_1_theory():
+	print("Stream 11. Concurrent execution and network.\n")
+	from multiprocessing import Process, JoinableQueue
+	if __name__ == '__main__':
+		colors_queue = JoinableQueue()
+		set_process = Process(target=set_color, args=((colors_queue),))
+		set_process.daemon = True
+		set_process.start()
+		add_colors(["red", "green", "blue"], colors_queue)
+		colors_queue.join()
+	print("Using threads with Shapes.\n");
+	# На основе потоков аналогичный пример.
+	import threading, queue, time
+	time.sleep(10)
+	colors_queue = queue.Queue()
+	for n in range(3):
+		send_thr = threading.Thread(target=receive_colors, args=(colors_queue,))
+		send_thr.start()
+	send_colors(["red", "green", "blue"], colors_queue)
+	colors_queue.join()
+	pass
+	
 #MAIN
 
-part_10_practice()
-# part_11_1_theory()
+unpooled = ["1","2","3","4","5","6","7","8","9"]
+count = len(unpooled)
+all_lists = []
 
+num = 3
+k = 0
+temp_list = []
+
+while (k < count):
+	temp_list.append(unpooled[k])
+	k += 1;
+	if (k % num == 0 or k == count):
+		all_lists.append(temp_list[::])
+		temp_list.clear()
+
+print(all_lists)
+
+print("Clear all_lists.")
+all_lists.clear()
+
+k = 0
+while (k < count):
+	if (k + num < count):
+		all_lists.append(unpooled[k : k + num])
+	else:
+		all_lists.append(unpooled[k : count])
+	k += num;
+print(all_lists)
+
+all_lists.clear()
+
+for k in range(0, count, num):
+	if (k + num < count):
+		all_lists.append(unpooled[k : k + num ])
+	else:
+		all_lists.append(unpooled[k : count])
+print(all_lists)
+
+
+'''
+div = count // num
+mod = count % num
+
+if mod == 0:
+	step = div
+else:
+	step = div+1
+
+print(div, mod, step)
+
+#создание списков
+for i in range(0, step):
+	for j in range(k, k + step):
+		temp_list.append(unpooled[j])
+	k = k + step
+	print(temp_list)
+	temp_list.clear()
+
+
+# на потом
+if mod >= div:
+	for i in range(div+1):
+		pool_dict = {i : "temp_list"}
+		i += 1
+		print(pool_dict)
+'''
+
+#part_11_1_theory()
 
 
 

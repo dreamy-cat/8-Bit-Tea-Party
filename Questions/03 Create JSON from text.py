@@ -1,6 +1,6 @@
 # Чтение текстового файла base.txt - файл должен быть создан. И создание на его основе
 #json-файла, содержащего массив уникальных слов либо из строки, если файл отсутствует.
-#Оригинал: https://github.com/nquidox/learn2python.
+#Оригинал: https://github.com/nquidox/learn2python. Вещание на 8-Bit Tea Party.
 
 #блок импорта
 import re
