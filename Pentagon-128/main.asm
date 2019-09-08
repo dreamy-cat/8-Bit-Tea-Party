@@ -1,6 +1,6 @@
         ORG #6000
 
-;Глобальные имена и переменные.
+;GLOBAL NAMES AND CONSTANTS.
 
 SCREEN_RAM      EQU #4000
 SCREEN_SIZE     EQU #1800
@@ -10,9 +10,14 @@ ATTRIB_SIZE     EQU #300
         LD D,#00
         LD E,%01000111
         CALL CLEARSCREEN
-        LD D,2
-        LD E,190
-        CALL SET_PIXEL
+        LD DE,#0000
+DPIX_1: CALL SET_PIXEL
+        LD A,#10
+        SIMPLE_DELAY
+        INC DE
+        LD A,D
+        OR E
+        JR NZ,DPIX_1
         RET 
 
 ;SET PIXEL ON SCREEN, WITH COORDINATES.
@@ -22,6 +27,9 @@ ATTRIB_SIZE     EQU #300
 
 SET_PIXEL:
         PUSH AF
+        LD A,E
+        CP #C0
+        JR NC,PIX_E
         PUSH BC
         PUSH DE
         PUSH HL
@@ -69,9 +77,26 @@ PIX_1:  RRCA
         POP HL
         POP DE
         POP BC
-        POP AF
+PIX_E:  POP AF
         RET 
 
+;SIMPLE DELAY FUNCTION FOR DEBUG.
+;A - DELAY IN 4 TACTS MULTIPLY IN 256.
+;RETURN: NOTHING.
+
+SIMPLE_DELAY:
+        PUSH AF
+        PUSH BC
+        LD A,B
+        LD C,0
+SIM_D:  NOP 
+        DEC BC
+        LD A,B
+        OR C
+        JR NZ,SIM_D
+        POP BC
+        POP AF
+        RET 
 
 ;CLEAR SCREEN FUNCTION AND TESTING.
 ;D - BYTE FOR FILL SCREEN.
