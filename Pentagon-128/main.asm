@@ -31,11 +31,164 @@ ATTRIB_SIZE     EQU #300
         IM 2
         EI 
 
-        CALL SET_PIXEL_DEBUG
+        ;CALL SET_PIXEL_DEBUG
+        CALL DEBUG_SPRITES
         LD A,1
         OUT (#FE),A
         POP HL
         LD SP,HL
+        RET 
+
+DEBUG_SPRITES:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+
+        LD HL,#4080     ;PERFOMANCE LABEL.
+        LD (HL),#FF
+
+        LD DE,#0006
+        LD BC,#2010
+        LD HL,LOCAL_MAP
+DBG_1:  HALT 
+        CALL DRAW_SPRITE
+        JR DBG_S
+        INC D
+        INC D
+        LD A,D
+        CP 32
+        JR NZ,DBG_1
+        LD D,0
+        INC E
+        INC E
+        LD A,E
+        CP 24
+        JR NZ,DBG_1
+
+DBG_S:  LD HL,CHARS
+        LD DE,#0E13
+        LD BC,#0404
+DBG_2:  HALT 
+        CALL DRAW_SPRITE
+
+        LD BC,#0400
+DBG_3:  PUSH BC
+        LD HL,LAMP_1
+        LD DE,#140F
+        LD BC,#0408
+        HALT 
+        CALL DRAW_SPRITE
+        LD HL,CHARS
+        LD DE,#0E13
+        LD BC,#0404
+        CALL DRAW_SPRITE
+        CALL DRAW_SPRITE
+        LD A,#04
+        OUT (#FE),A
+        POP BC
+        DEC BC
+        LD A,B
+        OR C
+        JR NZ,DBG_3
+        JR DBG_RET
+
+        LD HL,LAMP_2
+        HALT 
+        HALT 
+        LD A,#02
+        OUT (#FE),A
+        CALL DRAW_SPRITE
+        POP BC
+        DJNZ DBG_3
+
+DBG_RET:
+
+        POP HL
+        POP DE
+        POP BC
+        POP AF
+        RET 
+
+PATTERN:
+;       DUP 6144
+;       DB #AA
+;       EDUP
+
+LOCAL_MAP:
+INCBIN  "MAP.C",4096
+CHARS:
+INCBIN  "BOB_1.C",128
+GAME_OBJECTS:
+LAMP_1: INCBIN "LAMP_1.C",256
+LAMP_2: INCBIN "LAMP_2.C",256
+
+
+;DRAW A SPRITE ON SCREEN.
+;A - TYPE OF DRAW ON SCREEN MEMORY.
+;A = 0 - SIMPLE DRAW, OVERWRITE MEMORY.
+;A = 1 - 'AND' OPERATOR WITH MEMORY.
+;A = 2 - 'OR' OPERATOR WITH MEMORY.
+;A = 3 - 'XOR' OPERATOR WITH MEMORY.
+;B - X SIZE OF SPRITE IN 8*8.
+;C - Y SIZE OF SPRITE IN 8*8.
+;D - X COORDINATE ON SCREEN [0..31]
+;E - Y COORDINATE ON SCREEN [0..23]
+;HL - ADDRES OF SPRITE, LINEAR IN MEMORY.
+
+DRAW_SPRITE:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+
+SPR_3:  PUSH DE         ;SAVE COORDS.
+        PUSH HL         ;MAKE ADDRESS.
+        LD HL,SCREEN_ADDR
+        LD A,E          ;LOW PART ADDR.
+        AND %00000111
+        RRCA 
+        RRCA 
+        RRCA 
+        OR D
+        LD L,A
+        LD A,E          ;2048(1/3) PART.
+        AND %00011000
+        LD E,A
+        LD A,H
+        OR E
+        LD H,A
+        EX DE,HL
+        POP HL
+
+        PUSH BC         ;SIZES IN STACK!
+        ;POP DE         ;COORDS IN STACK!
+        LD C,8          ;DRAW 8 LINES * X.
+SPR_2:  PUSH BC
+        PUSH DE         ;SAVE LINE ADDR.
+
+SPR_1:  LD A,(HL)       ;DRAW 1 LINE.
+        LD (DE),A
+        INC HL
+        INC DE
+        DJNZ SPR_1
+        POP DE
+        INC D
+        POP BC
+        DEC C
+        JR NZ,SPR_2
+        POP BC          ;COORDS AND SIZES,
+        POP DE          ;IN REGS
+        INC E
+        DEC C
+        JR NZ,SPR_3     ;NEW ADDR.
+
+SPR_RET:
+
+        POP HL
+        POP DE
+        POP BC
+        POP AF
         RET 
 
 ;TESTING IM2 INTERRUPT.
@@ -50,11 +203,11 @@ IM2:    DI
         PUSH BC
         PUSH DE
         PUSH HL
-        LD A,4
+        LD A,1
         OUT (#FE),A
-        JR IM2_3
+        ;JR IM2_3
         LD A,(IM2_COUNTER)
-        CP 0
+        CP 10
         JR NZ,IM2_1
 IM2_3:  LD HL,(IM2_ADDR)
         LD A,%01101110
@@ -260,7 +413,7 @@ SIM_D:  ;NOP
 ;D - BYTE FOR FILL SCREEN.
 ;E - BYTE FOR FILL ATTRIBUTES.
 
-CLEARSCREEN:
+CLEAR_SCREEN:
         PUSH AF
         PUSH BC
         PUSH DE
@@ -287,4 +440,3 @@ CLR_2:  LD A,E
         POP BC
         POP AF
         RET 
-      
