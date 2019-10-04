@@ -6,6 +6,8 @@ SCREEN_ADDR     EQU #4000
 SCREEN_SIZE     EQU #1800
 SCREEN_ATTRIB   EQU #5800
 ATTRIB_SIZE     EQU #300
+SCREEN_X_SIZE   EQU #20
+SCREEN_Y_SIZE   EQU #18
 
 ;MAIN PART
 
@@ -33,11 +35,108 @@ ATTRIB_SIZE     EQU #300
 
         ;CALL SET_PIXEL_DEBUG
         CALL DEBUG_SPRITES
+
+        CALL KEMPSTON_JOYSTICK
+
         LD A,1
         OUT (#FE),A
         POP HL
         LD SP,HL
         RET 
+
+; TESTING KEMPSTON.
+
+KEMPSTON:
+        DB #00
+
+KEMPSTON_JOYSTICK:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+        LD BC,#0400
+KMP_S:  PUSH BC
+        LD DE,(CHAR_POS)
+        LD BC,#0404
+        LD HL,CHARS
+        HALT 
+
+        CALL DRAW_SPRITE
+        LD A,(KEMPSTON)
+        BIT 0,A         ;RIGHT
+        JR Z,KMP_1
+        INC D
+        JR KMP_N
+KMP_1:  BIT 1,A         ;LEFT
+        JR Z,KMP_2
+        DEC D
+        JR KMP_N
+KMP_2:  BIT 2,A         ;DOWN
+        JR Z,KMP_3
+        INC E
+        JR KMP_N
+KMP_3:  BIT 3,A         ;UP
+        JR Z,KMP_4
+        DEC E
+        JR KMP_N
+KMP_4:  BIT 4,A         ;FIRE
+        JR Z,KMP_N
+        LD A,#07
+        OUT (#FE),A
+KMP_N:  LD (CHAR_POS),DE
+        POP BC
+        DEC BC
+        LD A,B
+        OR C
+        JR NZ,KMP_S
+KMP_RET:
+        POP HL
+        POP DE
+        POP BC
+        POP AF
+        RET 
+
+;TESTING IM2 INTERRUPT.
+
+IM2_ADDR:
+        DW #5800
+IM2_COUNTER:
+        DB #00
+IM2_COLOR:
+        DB %01010111
+
+IM2:    DI 
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+        LD A,1
+        OUT (#FE),A
+        ;JR IM2_3
+        LD A,(IM2_COUNTER)
+        CP 10
+        JR NZ,IM2_1
+IM2_3:  LD HL,(IM2_ADDR)
+        LD A,(IM2_COLOR)
+        LD (HL),A
+        INC HL
+        LD (IM2_ADDR),HL
+        XOR A
+        LD (IM2_COUNTER),A
+        JR IM2_2
+IM2_1:  INC A
+        LD (IM2_COUNTER),A
+IM2_2:  ;JR IM2_RET     ;TESTING COLORS.
+        IN A,(#1F)      ;KEMPSTON.
+        AND %00011111
+        LD (KEMPSTON),A
+        LD (IM2_COLOR),A
+        POP HL
+        POP DE
+        POP BC
+        POP AF
+        EI 
+        RETI 
 
 DEBUG_SPRITES:
         PUSH AF
@@ -48,31 +147,29 @@ DEBUG_SPRITES:
         LD HL,#4080     ;PERFOMANCE LABEL.
         LD (HL),#FF
 
-        LD DE,#0006
+        ;LD DE,#0006    ;16 PIXEL TILE.
+        ;LD DE,#0005    ;24 PIXEL TILE.
+        ;LD DE,#0004    ;32 PIXEL TILE.
+        LD DE,#0003     ;40 PIXEL TILE.
         LD BC,#2010
         LD HL,LOCAL_MAP
 DBG_1:  HALT 
         CALL DRAW_SPRITE
-        JR DBG_S
+        ;JP DBG_RET
+        LD A,#20
+        ;LD BC,#0103    ;TILE SIZE.
+        ;LD BC,#0104
+        LD BC,#0105
+        ;LD DE,#0015    ;TILE POSITION.
+        ;LD DE,#0014
+        LD DE,#0013
+        LD HL,TEST_TILE
+DBG_T:  CALL DRAW_SPRITE
         INC D
-        INC D
-        LD A,D
-        CP 32
-        JR NZ,DBG_1
-        LD D,0
-        INC E
-        INC E
-        LD A,E
-        CP 24
-        JR NZ,DBG_1
+        DEC A
+        JR NZ,DBG_T
 
-DBG_S:  LD HL,CHARS
-        LD DE,#0E13
-        LD BC,#0404
-DBG_2:  HALT 
-        CALL DRAW_SPRITE
-
-        LD BC,#0400
+DBG_S:  LD BC,#0200
 DBG_3:  PUSH BC
         LD HL,LAMP_1
         LD DE,#140F
@@ -80,10 +177,31 @@ DBG_3:  PUSH BC
         HALT 
         CALL DRAW_SPRITE
         LD HL,CHARS
-        LD DE,#0E13
+        LD DE,(CHAR_POS)
         LD BC,#0404
         CALL DRAW_SPRITE
         CALL DRAW_SPRITE
+        JR DBG_7        ;TO STATIC CHAR
+        LD A,(DIRECT)
+        OR A
+        JR NZ,DBG_4     ;TO RIGHT
+        INC D
+        LD (CHAR_POS),DE
+        JR DBG_5
+DBG_4:  DEC D
+        LD (CHAR_POS),DE ;TO LEFT
+DBG_5:  LD A,D           ;LIMITS
+        CP #1C
+        JR NZ,DBG_6     ;RIGHT LIMIT
+        LD A,1
+        LD (DIRECT),A
+        JR DBG_7        ;CHANGE DIRECTION
+DBG_6:  LD A,D
+        CP 0
+        JR NZ,DBG_7
+        LD A,0          ;CHANGE DIRECTION
+        LD (DIRECT),A
+DBG_7:
         LD A,#04
         OUT (#FE),A
         POP BC
@@ -109,6 +227,16 @@ DBG_RET:
         POP BC
         POP AF
         RET 
+
+CHAR_POS:
+        DW #0412
+DIRECT: DB 0
+
+TEST_TILE:
+        DUP 20
+        DB %10101010
+        DB %01010101
+        EDUP 
 
 PATTERN:
 ;       DUP 6144
@@ -190,41 +318,6 @@ SPR_RET:
         POP BC
         POP AF
         RET 
-
-;TESTING IM2 INTERRUPT.
-
-IM2_ADDR:
-        DW #5800
-IM2_COUNTER:
-        DB #00
-
-IM2:    DI 
-        PUSH AF
-        PUSH BC
-        PUSH DE
-        PUSH HL
-        LD A,1
-        OUT (#FE),A
-        ;JR IM2_3
-        LD A,(IM2_COUNTER)
-        CP 10
-        JR NZ,IM2_1
-IM2_3:  LD HL,(IM2_ADDR)
-        LD A,%01101110
-        LD (HL),A
-        INC HL
-        LD (IM2_ADDR),HL
-        XOR A
-        LD (IM2_COUNTER),A
-        JR IM2_2
-IM2_1:  INC A
-        LD (IM2_COUNTER),A
-IM2_2:  POP HL
-        POP DE
-        POP BC
-        POP AF
-        EI 
-        RETI 
 
 ;GLOBAL STATIC VARIABLES.
 
