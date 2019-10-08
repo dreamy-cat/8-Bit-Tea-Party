@@ -1,0 +1,6 @@
+bob_p1_f01_d142.bmp
+bob_p1_f02_d008.bmp
+bob_p2_f01_d012.bmp
+bob_p2_f02_d012.bmp
+bob_p2_f03_d012.bmp
+bob_p2_f04_d012.bmp
