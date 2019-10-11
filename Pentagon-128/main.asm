@@ -1,5 +1,3 @@
-        ORG #6000
-
 ;GLOBAL NAMES AND CONSTANTS.
 
 SCREEN_ADDR     EQU #4000
@@ -9,8 +7,12 @@ ATTRIB_SIZE     EQU #300
 SCREEN_X_SIZE   EQU #20
 SCREEN_Y_SIZE   EQU #18
 
+        ORG #8000
+MOD:    INCBIN "MOD_1.C"
+
 ;MAIN PART
 
+        ORG #6000
         LD HL,#0000
         ADD HL,SP
         LD SP,#5E00
@@ -18,7 +20,7 @@ SCREEN_Y_SIZE   EQU #18
         LD A,4
         OUT (#FE),A
 
-        ;SET INTERRUPT
+;SET INTERRUPT
 
         DI 
         LD HL,#5EFF     ;IM2_ADDR
@@ -33,16 +35,29 @@ SCREEN_Y_SIZE   EQU #18
         IM 2
         EI 
 
+        LD D,0
+        LD E,%01000111
+        CALL CLEAR_SCREEN
         ;CALL SET_PIXEL_DEBUG
         CALL DEBUG_SPRITES
 
-        CALL KEMPSTON_JOYSTICK
+        ;CALL KEMPSTON_JOYSTICK
+        JR TO_RET
+        LD DE,#0505
+        LD BC,#0303
+        LD HL,TST_1
+        CALL DRAW_SPRITE
+        LD DE,#1010
+        LD BC,#0503
+        LD HL,TST_2
+        CALL DRAW_SPRITE
 
         LD A,1
         OUT (#FE),A
-        POP HL
+TO_RET: POP HL
         LD SP,HL
         RET 
+
 
 ; TESTING KEMPSTON.
 
@@ -103,13 +118,15 @@ IM2_ADDR:
 IM2_COUNTER:
         DB #00
 IM2_COLOR:
-        DB %01010111
+        DB %01001111
 
 IM2:    DI 
         PUSH AF
         PUSH BC
         PUSH DE
         PUSH HL
+        PUSH IX
+        PUSH IY
         LD A,1
         OUT (#FE),A
         ;JR IM2_3
@@ -126,17 +143,22 @@ IM2_3:  LD HL,(IM2_ADDR)
         JR IM2_2
 IM2_1:  INC A
         LD (IM2_COUNTER),A
-IM2_2:  ;JR IM2_RET     ;TESTING COLORS.
-        IN A,(#1F)      ;KEMPSTON.
+IM2_2:  ;JR IM2_RET     ;TESTING COLORS
+        IN A,(#1F)      ;KEMPSTON
         AND %00011111
         LD (KEMPSTON),A
-        LD (IM2_COLOR),A
+;CALL MINIMAL AY-PLAYER.
+        CALL MOD
+        POP IY
+        POP IX
         POP HL
         POP DE
         POP BC
         POP AF
         EI 
         RETI 
+
+LAMP_FRAME:     DB 0
 
 DEBUG_SPRITES:
         PUSH AF
@@ -149,37 +171,54 @@ DEBUG_SPRITES:
 
         ;LD DE,#0006    ;16 PIXEL TILE.
         ;LD DE,#0005    ;24 PIXEL TILE.
-        ;LD DE,#0004    ;32 PIXEL TILE.
-        LD DE,#0003     ;40 PIXEL TILE.
+        LD DE,#0008     ;32 PIXEL TILE.
+        ;LD DE,#0003    ;40 PIXEL TILE.
         LD BC,#2010
+        LD A,0
         LD HL,LOCAL_MAP
 DBG_1:  HALT 
         CALL DRAW_SPRITE
+        ;JR DBG_S       ;WITHOUT TILES.
         ;JP DBG_RET
         LD A,#20
         ;LD BC,#0103    ;TILE SIZE.
-        ;LD BC,#0104
-        LD BC,#0105
+        LD BC,#0104
+        ;LD BC,#0105
         ;LD DE,#0015    ;TILE POSITION.
-        ;LD DE,#0014
-        LD DE,#0013
+        LD DE,#0014
+        ;LD DE,#0013
         LD HL,TEST_TILE
 DBG_T:  CALL DRAW_SPRITE
         INC D
         DEC A
         JR NZ,DBG_T
 
-DBG_S:  LD BC,#0200
+DBG_S:  LD BC,#2000
 DBG_3:  PUSH BC
-        LD HL,LAMP_1
+
+        LD HL,LAMP_M
         LD DE,#140F
         LD BC,#0408
+        LD A,2
         HALT 
         CALL DRAW_SPRITE
+        LD DE,#140F
+        LD BC,#0408
+        LD A,(LAMP_FRAME)
+        BIT 0,A
+        JR Z,FRAME_2
+        LD HL,LAMP_1
+        JR DRW
+FRAME_2:LD HL,LAMP_2
+DRW:    INC A
+        LD (LAMP_FRAME),A
+        LD A,4
+        CALL DRAW_SPRITE
+        LD A,2
         LD HL,CHARS
         LD DE,(CHAR_POS)
         LD BC,#0404
-        CALL DRAW_SPRITE
+        LD A,1
         CALL DRAW_SPRITE
         JR DBG_7        ;TO STATIC CHAR
         LD A,(DIRECT)
@@ -209,16 +248,6 @@ DBG_7:
         LD A,B
         OR C
         JR NZ,DBG_3
-        JR DBG_RET
-
-        LD HL,LAMP_2
-        HALT 
-        HALT 
-        LD A,#02
-        OUT (#FE),A
-        CALL DRAW_SPRITE
-        POP BC
-        DJNZ DBG_3
 
 DBG_RET:
 
@@ -229,7 +258,7 @@ DBG_RET:
         RET 
 
 CHAR_POS:
-        DW #0412
+        DW #0213
 DIRECT: DB 0
 
 TEST_TILE:
@@ -244,16 +273,18 @@ PATTERN:
 ;       EDUP
 
 LOCAL_MAP:
-INCBIN  "MAP.C",4096
+INCBIN  "LOC_1.C",4096
 CHARS:
-INCBIN  "BOB_1.C",128
+INCBIN  "BOB.C",128
 GAME_OBJECTS:
-LAMP_1: INCBIN "LAMP_1.C",256
-LAMP_2: INCBIN "LAMP_2.C",256
-
+LAMP_1: INCBIN "LAMP_01.C",256
+LAMP_2: INCBIN "LAMP_02.C",256
+LAMP_M: INCBIN "LAMP_M.C",256
+TST_1:  INCBIN "02.C",72
+TST_2:  INCBIN "01.C",120
 
 ;DRAW A SPRITE ON SCREEN.
-;A - TYPE OF DRAW ON SCREEN MEMORY.
+;A - TYPE OF DRAW ON SCREEN MEMORY, BIT N.
 ;A = 0 - SIMPLE DRAW, OVERWRITE MEMORY.
 ;A = 1 - 'AND' OPERATOR WITH MEMORY.
 ;A = 2 - 'OR' OPERATOR WITH MEMORY.
@@ -269,18 +300,38 @@ DRAW_SPRITE:
         PUSH BC
         PUSH DE
         PUSH HL
+        PUSH IX
 
-SPR_3:  PUSH DE         ;SAVE COORDS.
-        PUSH HL         ;MAKE ADDRESS.
+        PUSH HL
+        BIT 0,A         ;ADDRESS OF JUMP
+        JR Z,SPR_4      ;TYPE DRAW MOVE
+SPR_7:  LD HL,SPR_MOV
+        JR SPR_DRW
+SPR_4:  BIT 1,A
+        JR Z,SPR_5      ;AND DRAW(MASK)
+        LD HL,SPR_AND
+        JR SPR_DRW
+SPR_5:  BIT 2,A         ;OR DRAW(UNION)
+        JR Z,SPR_6
+        LD HL,SPR_OR
+        JR SPR_DRW
+SPR_6:  BIT 3,A         ;XOR DRAW(EXTRA)
+        JR Z,SPR_7      ;IF ERROR, MOVE
+        LD HL,SPR_XOR
+SPR_DRW:PUSH HL
+        POP IX          ;SAVE ADDRESS
+        POP HL
+SPR_3:  PUSH DE         ;SAVE COORDS
+        PUSH HL         ;MAKE ADDRESS
         LD HL,SCREEN_ADDR
-        LD A,E          ;LOW PART ADDR.
+        LD A,E          ;LOW PART ADDR
         AND %00000111
         RRCA 
         RRCA 
         RRCA 
         OR D
         LD L,A
-        LD A,E          ;2048(1/3) PART.
+        LD A,E          ;2048(1/3) PART
         AND %00011000
         LD E,A
         LD A,H
@@ -289,14 +340,21 @@ SPR_3:  PUSH DE         ;SAVE COORDS.
         EX DE,HL
         POP HL
 
-        PUSH BC         ;SIZES IN STACK!
-        ;POP DE         ;COORDS IN STACK!
-        LD C,8          ;DRAW 8 LINES * X.
+        PUSH BC         ;SIZES IN STACK
+        ;POP DE         ;COORDS IN STACK
+        LD C,8          ;DRAW 8 LINES * X
 SPR_2:  PUSH BC
         PUSH DE         ;SAVE LINE ADDR.
-
-SPR_1:  LD A,(HL)       ;DRAW 1 LINE.
-        LD (DE),A
+SPR_1:  LD A,(DE)       ;DRAW 1 LINE
+        JP (IX)         ;INDERECT CALL
+SPR_AND:AND (HL)
+        JR SPR_ST       ;TYPES OF DRAW
+SPR_OR: OR (HL)
+        JR SPR_ST
+SPR_XOR:XOR (HL)
+        JR SPR_ST
+SPR_MOV:LD A,(HL)
+SPR_ST: LD (DE),A       ;STORE BYTE
         INC HL
         INC DE
         DJNZ SPR_1
@@ -312,7 +370,7 @@ SPR_1:  LD A,(HL)       ;DRAW 1 LINE.
         JR NZ,SPR_3     ;NEW ADDR.
 
 SPR_RET:
-
+        POP IX
         POP HL
         POP DE
         POP BC
@@ -533,3 +591,4 @@ CLR_2:  LD A,E
         POP BC
         POP AF
         RET 
+ 
