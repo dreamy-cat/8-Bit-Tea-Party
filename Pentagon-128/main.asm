@@ -1,5 +1,6 @@
-;GLOBAL NAMES AND CONSTANTS.
+;GLOBAL SYSTEM NAMES AND CONSTANTS.
 
+;SCREEN PARAMETERS, PIXELS AND ATTRIBUTES.
 SCREEN_ADDR     EQU #4000
 SCREEN_SIZE     EQU #1800
 SCREEN_ATTRIB   EQU #5800
@@ -7,62 +8,272 @@ ATTRIB_SIZE     EQU #300
 SCREEN_X_SIZE   EQU #20
 SCREEN_Y_SIZE   EQU #18
 
-        ORG #8000
-MOD:    INCBIN "MOD_1.C"
+;KEMPSTON JOYSTICK BITS TO CHECK AND PORT.
+KEMPSTON_PORT   EQU #1F
+KEMPSTON_MASK   EQU %00011111   ;LOW
+KEMPSTON_RIGHT  EQU #00
+KEMPSTON_LEFT   EQU #01
+KEMPSTON_DOWN   EQU #02
+KEMPSTON_UP     EQU #03
+KEMPSTON_FIRE   EQU #04
 
-;MAIN PART
+;AY MODULE REMOVE LATER TO DATA SECTION.
+;       ORG #8000
+;MOD:   INCBIN "MOD_1.C"
+
+;MAIN PART STARTS FROM 24K, 40KB MAX.
 
         ORG #6000
-        LD HL,#0000
-        ADD HL,SP
-        LD SP,#5E00
-        PUSH HL
-        LD A,4
-        OUT (#FE),A
+        LD HL,#0000     ;SET STACK TO TOP
+        ADD HL,SP       ;OF CODE PART
+        LD SP,#5E00     ;RESERVED FOR IM2
+        PUSH HL         ;STORE FOR SAFE
 
 ;SET INTERRUPT
 
         DI 
         LD HL,#5EFF     ;IM2_ADDR
-                        ;+FF FROM STACK.
-        LD BC,IM2
+        LD BC,IM2       ;+FF FROM STACK
         LD (HL),C
         INC HL
         LD (HL),B
-        LD A,#5E
+        LD A,#5E        ;SET HIGHER PART
         LD I,A
-
         IM 2
-        EI 
+        EI              ;INTS 50 FPS
 
+        CALL INIT_GAME
+        CALL GAME_MAIN_CYCLE
+
+        ;CALL DEBUG_SPRITES
+        ;CALL KEMPSTON_JOYSTICK
+
+TO_RET: LD A,1          ;RESTORE BORDER
+        OUT (#FE),A
+        POP HL
+        LD SP,HL        ;RESTORE STACK
+        RET 
+
+;GLOBAL STATIC VARIABLES.
+
+BACK_1: DUP #10
+        DW 0
+        EDUP 
+
+TEST_SPR:
+        DUP 20
+        DB %10101010
+        DB %01010101
+        EDUP 
+
+;GLOBAL GAME VARIABLES.
+
+WORLD_SIZE_X    EQU 1024
+WORLD_SIZE_Y    EQU 32  ;X AND Y IN PIXELS
+
+KEMPSTON:       DB #00  ;EVERY INTERRUPT.
+
+BOB_POSITION:           ;GAME COORDINATES
+        DW #0412        ;LEFT START X
+        ;DW #0000       ;TOP START Y
+BOB_DIRECTION:
+        DB #00
+
+LOCATION_0:
+        INCBIN "01.C",4096
+LOCATION_1:
+ROAD_TILE:
+        INCBIN "TILE.C"
+
+CHARACTERS:
+;CONSTANT PART OF CHARACTER STRUCTURE.
+;[0,1]  POSITION X AND Y ON SCREEN.
+;[2,3]  SIZES OF CHAR X AND Y, ALL.
+;[4]    PARTS OF CHARACTER AND ANIMATION.
+;[5]    FLAGS
+;VARIABLE PART OF STRUCTURE, USE RESERVED.
+;[6..N*[4]]
+;       ADDRESESS OF PARTS, 16BITS.
+
+;PART OF CHARACTER STRUCTURE, MASKS HERE.
+;[0,1]  POSITION OF PART X AND Y FROM 0.
+;[2,3]  SIZES OF PART X AND Y.
+;[4]    CURRENT ANIMATION FRAME.
+;[5]    ANIMATIONS TOTAL.
+;[6]    DELAY OF FRAME IN 50 FPS SPEED.
+;[7]    FLAGS.
+;VARIABLE PART.
+;[8..N*[5]]
+;       ADRESSES OF ANIMATION FRAMES.
+
+BOB:
+        INCBIN "BOB.C",128
+
+GAME_OBJECTS:
+
+LAMP_1: INCBIN "LAMP_01.C",256
+LAMP_2: INCBIN "LAMP_02.C",256
+LAMP_M: INCBIN "LAMP_M.C",256
+
+;DRAW CHARACTER FUNCTION IN BYTES.
+;USING "DRAW_SPRITE" FUNCTION AND STRUC.
+;IX - ADDRESS OF CHARACTER DATA STRUCTURE.
+
+DRAW_CHARACTER:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+        PUSH IX
+        PUSH IY
+
+        ;IY - PARTS. IX - MAIN STRUCTURE.
+
+        POP IY
+        POP IX
+        POP HL
+        POP DE
+        POP BC
+        POP AF
+        RET 
+
+;INITIALIZATION OF GAME PARAMETERS.
+;MAY BE NOT NEEDED.
+INIT_GAME:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+        PUSH IX
+        PUSH IY
         LD D,0
         LD E,%01000111
         CALL CLEAR_SCREEN
-        ;CALL SET_PIXEL_DEBUG
-        CALL DEBUG_SPRITES
 
-        ;CALL KEMPSTON_JOYSTICK
-        JR TO_RET
-        LD DE,#0505
-        LD BC,#0303
-        LD HL,TST_1
-        CALL DRAW_SPRITE
-        LD DE,#1010
-        LD BC,#0503
-        LD HL,TST_2
-        CALL DRAW_SPRITE
+        POP IY
+        POP IX
+        POP HL
+        POP DE
+        POP BC
+        POP AF
+        RET 
 
+;GAME MAIN CYCLE.
+
+LAMP_FRAME:     DB 0
+
+GAME_MAIN_CYCLE:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+        PUSH IX
+        PUSH IY
+
+        LD DE,#0004     ;32 PIXEL ROAD
+        LD BC,#2010
+        LD A,0
+        LD HL,LOCATION_0
+DBG_1:  HALT 
+        CALL DRAW_SPRITE
+        ;JR DBG_S       ;WITHOUT TILES
+        ;JP DBG_RET
+        LD A,#10
+        LD BC,#0204     ;ROAD SIZE
+        LD DE,#0014     ;ROAD POSITION
+        LD HL,ROAD_TILE
+DBG_T:  PUSH AF
         LD A,1
+        CALL DRAW_SPRITE
+        POP AF
+        INC D
+        INC D
+        DEC A
+        JR NZ,DBG_T
+
+DBG_S:  LD BC,#0100     ;MAIN CYCLE
+DBG_3:  PUSH BC
+
+        LD HL,LAMP_M
+        LD DE,#140F
+        LD BC,#0408
+        LD A,2
+        HALT 
+        CALL DRAW_SPRITE
+        LD DE,#140F
+        LD BC,#0408
+        LD A,(LAMP_FRAME)
+        BIT 0,A
+        JR Z,FRAME_2
+        LD HL,LAMP_1
+        JR DRW
+FRAME_2:LD HL,LAMP_2
+DRW:    INC A
+        LD (LAMP_FRAME),A
+        LD A,4
+        CALL DRAW_SPRITE
+        LD A,2
+        LD HL,CHARACTERS
+        LD DE,(BOB_POSITION)
+        LD BC,#0404
+        LD A,1
+        CALL DRAW_SPRITE
+        ;JR DBG_7       ;WITHOUT CONTROL
+
+KMP_J0: LD A,(KEMPSTON)
+        BIT KEMPSTON_RIGHT,A
+        JR Z,KMP_J1
+        LD A,D
+        CP 28           ;INSERT LIMIT X
+        JR Z,DBG_7
+        INC D
+        JR DBG_6
+KMP_J1: BIT KEMPSTON_LEFT,A
+        JR Z,KMP_J2
+        LD A,D
+        OR D            ;GLOBAL
+        JR Z,DBG_7
+        DEC D
+        JR DBG_6
+KMP_J2: BIT KEMPSTON_DOWN,A
+        JR Z,KMP_J3
+        LD A,E
+        CP 20           ;INSERT LIMIT Y
+        JR Z,DBG_7
+        INC E
+        JR DBG_6
+KMP_J3: BIT KEMPSTON_UP,A
+        JR Z,KMP_J4
+        LD A,E
+        CP 16           ;GLOBAL
+        JR Z,DBG_7
+        DEC E
+        JR DBG_6
+KMP_J4: BIT KEMPSTON_FIRE,A
+        JR Z,DBG_7
+        LD A,#07        ;JUST WHITE BORDER
         OUT (#FE),A
-TO_RET: POP HL
-        LD SP,HL
+        HALT 
+        JR DBG_7
+DBG_6:  LD (BOB_POSITION),DE
+DBG_7:  LD A,#04
+        OUT (#FE),A
+        POP BC
+        DEC BC
+        LD A,B
+        OR C
+        JP NZ,DBG_3
+DBG_RET:
+        POP IY
+        POP IX
+        POP HL
+        POP DE
+        POP BC
+        POP AF
         RET 
 
 
 ; TESTING KEMPSTON.
-
-KEMPSTON:
-        DB #00
 
 KEMPSTON_JOYSTICK:
         PUSH AF
@@ -71,14 +282,14 @@ KEMPSTON_JOYSTICK:
         PUSH HL
         LD BC,#0400
 KMP_S:  PUSH BC
-        LD DE,(CHAR_POS)
+        LD DE,(BOB_POSITION)
         LD BC,#0404
-        LD HL,CHARS
+        LD HL,CHARACTERS
         HALT 
 
         CALL DRAW_SPRITE
         LD A,(KEMPSTON)
-        BIT 0,A         ;RIGHT
+        BIT KEMPSTON_RIGHT,A
         JR Z,KMP_1
         INC D
         JR KMP_N
@@ -98,7 +309,7 @@ KMP_4:  BIT 4,A         ;FIRE
         JR Z,KMP_N
         LD A,#07
         OUT (#FE),A
-KMP_N:  LD (CHAR_POS),DE
+KMP_N:  LD (BOB_POSITION),DE
         POP BC
         DEC BC
         LD A,B
@@ -144,11 +355,11 @@ IM2_3:  LD HL,(IM2_ADDR)
 IM2_1:  INC A
         LD (IM2_COUNTER),A
 IM2_2:  ;JR IM2_RET     ;TESTING COLORS
-        IN A,(#1F)      ;KEMPSTON
-        AND %00011111
+        IN A,(KEMPSTON_PORT)
+        AND KEMPSTON_MASK
         LD (KEMPSTON),A
 ;CALL MINIMAL AY-PLAYER.
-        CALL MOD
+;       CALL MOD
         POP IY
         POP IX
         POP HL
@@ -157,131 +368,6 @@ IM2_2:  ;JR IM2_RET     ;TESTING COLORS
         POP AF
         EI 
         RETI 
-
-LAMP_FRAME:     DB 0
-
-DEBUG_SPRITES:
-        PUSH AF
-        PUSH BC
-        PUSH DE
-        PUSH HL
-
-        LD HL,#4080     ;PERFOMANCE LABEL.
-        LD (HL),#FF
-
-        ;LD DE,#0006    ;16 PIXEL TILE.
-        ;LD DE,#0005    ;24 PIXEL TILE.
-        LD DE,#0008     ;32 PIXEL TILE.
-        ;LD DE,#0003    ;40 PIXEL TILE.
-        LD BC,#2010
-        LD A,0
-        LD HL,LOCAL_MAP
-DBG_1:  HALT 
-        CALL DRAW_SPRITE
-        ;JR DBG_S       ;WITHOUT TILES.
-        ;JP DBG_RET
-        LD A,#20
-        ;LD BC,#0103    ;TILE SIZE.
-        LD BC,#0104
-        ;LD BC,#0105
-        ;LD DE,#0015    ;TILE POSITION.
-        LD DE,#0014
-        ;LD DE,#0013
-        LD HL,TEST_TILE
-DBG_T:  CALL DRAW_SPRITE
-        INC D
-        DEC A
-        JR NZ,DBG_T
-
-DBG_S:  LD BC,#2000
-DBG_3:  PUSH BC
-
-        LD HL,LAMP_M
-        LD DE,#140F
-        LD BC,#0408
-        LD A,2
-        HALT 
-        CALL DRAW_SPRITE
-        LD DE,#140F
-        LD BC,#0408
-        LD A,(LAMP_FRAME)
-        BIT 0,A
-        JR Z,FRAME_2
-        LD HL,LAMP_1
-        JR DRW
-FRAME_2:LD HL,LAMP_2
-DRW:    INC A
-        LD (LAMP_FRAME),A
-        LD A,4
-        CALL DRAW_SPRITE
-        LD A,2
-        LD HL,CHARS
-        LD DE,(CHAR_POS)
-        LD BC,#0404
-        LD A,1
-        CALL DRAW_SPRITE
-        JR DBG_7        ;TO STATIC CHAR
-        LD A,(DIRECT)
-        OR A
-        JR NZ,DBG_4     ;TO RIGHT
-        INC D
-        LD (CHAR_POS),DE
-        JR DBG_5
-DBG_4:  DEC D
-        LD (CHAR_POS),DE ;TO LEFT
-DBG_5:  LD A,D           ;LIMITS
-        CP #1C
-        JR NZ,DBG_6     ;RIGHT LIMIT
-        LD A,1
-        LD (DIRECT),A
-        JR DBG_7        ;CHANGE DIRECTION
-DBG_6:  LD A,D
-        CP 0
-        JR NZ,DBG_7
-        LD A,0          ;CHANGE DIRECTION
-        LD (DIRECT),A
-DBG_7:
-        LD A,#04
-        OUT (#FE),A
-        POP BC
-        DEC BC
-        LD A,B
-        OR C
-        JR NZ,DBG_3
-
-DBG_RET:
-
-        POP HL
-        POP DE
-        POP BC
-        POP AF
-        RET 
-
-CHAR_POS:
-        DW #0213
-DIRECT: DB 0
-
-TEST_TILE:
-        DUP 20
-        DB %10101010
-        DB %01010101
-        EDUP 
-
-PATTERN:
-;       DUP 6144
-;       DB #AA
-;       EDUP
-
-LOCAL_MAP:
-INCBIN  "LOC_1.C",4096
-CHARS:
-INCBIN  "BOB.C",128
-GAME_OBJECTS:
-LAMP_1: INCBIN "LAMP_01.C",256
-LAMP_2: INCBIN "LAMP_02.C",256
-LAMP_M: INCBIN "LAMP_M.C",256
-TST_1:  INCBIN "02.C",72
-TST_2:  INCBIN "01.C",120
 
 ;DRAW A SPRITE ON SCREEN.
 ;A - TYPE OF DRAW ON SCREEN MEMORY, BIT N.
@@ -301,7 +387,27 @@ DRAW_SPRITE:
         PUSH DE
         PUSH HL
         PUSH IX
-
+        PUSH AF         ;CHECK PARAMETERS
+        PUSH BC
+        LD A,D
+        ADD A,B
+        JR C,SPR_ERR    ;MORE THAN 255
+        LD B,A
+        LD A,SCREEN_X_SIZE
+        CP B
+        JR C,SPR_ERR    ;TOO BIG
+        LD A,E
+        ADD A,C
+        JR C,SPR_ERR
+        LD C,A
+        LD A,SCREEN_Y_SIZE
+        CP C
+        JR NC,SPR_OK
+SPR_ERR:POP BC
+        POP AF
+        JR SPR_RET
+SPR_OK: POP BC
+        POP AF
         PUSH HL
         BIT 0,A         ;ADDRESS OF JUMP
         JR Z,SPR_4      ;TYPE DRAW MOVE
@@ -364,28 +470,21 @@ SPR_ST: LD (DE),A       ;STORE BYTE
         DEC C
         JR NZ,SPR_2
         POP BC          ;COORDS AND SIZES,
-        POP DE          ;IN REGS
+        POP DE          ;IN REGISTERS
         INC E
         DEC C
-        JR NZ,SPR_3     ;NEW ADDR.
-
-SPR_RET:
-        POP IX
+        JR NZ,SPR_3     ;NEW ADDRESS
+SPR_RET:POP IX
         POP HL
         POP DE
         POP BC
         POP AF
         RET 
 
-;GLOBAL STATIC VARIABLES.
+;NIGHT SKY WITH STARS.
+;TODO.
 
-BACK_1: DUP #10
-        DW 0
-        EDUP 
-
-;BACK_PLANES WITH PIXELS.
-
-BACK_PLANES:
+BACK_PLANE:
         PUSH AF
         PUSH BC
         PUSH DE
@@ -411,7 +510,7 @@ B_PL_2: LD E,(HL)
         INC HL
         DJNZ B_PL_1
         LD A,1
-        CALL SIMPLE_DELAY
+;       CALL SIMPLE_DELAY
         ;LD HL,BACK_1   ;ERASE PIXELS
         ;LD B,#10
         ;LD E,(HL)
@@ -426,48 +525,6 @@ B_PL_2: LD E,(HL)
         POP DE
         POP BC
         POP AF
-        RET 
-
-SET_PIXEL_DEBUG:
-        LD D,#00
-        LD E,%01000111
-        ;CALL CLEARSCREEN
-        LD DE,#0000
-DPIX_1: LD A,1
-        ;HALT
-        CALL SET_PIXEL
-       ;LD A,#1
-       ;CALL SIMPLE_DELAY
-        INC DE
-        LD A,D
-        OR E
-        JR NZ,DPIX_1
-TPIX    LD DE,#0000
-DPIX_2: LD A,1
-        OUT (#FE),A
-        HALT 
-        XOR A
-        CALL SET_PIXEL
-        LD A,1
-        CALL SIMPLE_DELAY
-        DEC E
-        DEC D
-        LD A,D
-        OR E
-        JR NZ,DPIX_2
-        LD DE,#0000
-DPIX3:  LD A,1
-        OUT (#FE),A
-        HALT 
-        XOR A
-        CALL SET_PIXEL
-        ;LD A,1
-        ;CALL SIMPLE_DELAY
-        DEC D
-        INC E
-        LD A,D
-        OR E
-        JR NZ,DPIX3
         RET 
 
 ;SET PIXEL ON SCREEN, WITH COORDINATES.
@@ -542,24 +599,6 @@ PIX_E:  POP BC
         POP AF
         RET 
 
-;SIMPLE DELAY FUNCTION FOR DEBUG.
-;A - DELAY = A*256*30 TACTS.
-;RETURN: NOTHING.
-
-SIMPLE_DELAY:
-        PUSH AF
-        PUSH BC
-        LD A,B
-        LD C,0
-SIM_D:  ;NOP
-        DEC BC
-        LD A,B
-        OR C
-        JR NZ,SIM_D
-        POP BC
-        POP AF
-        RET 
-
 ;CLEAR SCREEN FUNCTION.
 ;D - BYTE FOR FILL SCREEN.
 ;E - BYTE FOR FILL ATTRIBUTES.
@@ -570,7 +609,7 @@ CLEAR_SCREEN:
         PUSH DE
         PUSH HL
         LD HL,SCREEN_ADDR
-        LD BC,#1800
+        LD BC,SCREEN_SIZE
 CLR_1:  LD A,D
         LD (HL),A
         INC HL
@@ -578,7 +617,7 @@ CLR_1:  LD A,D
         LD A,B
         OR C
         JR NZ,CLR_1
-        LD BC,#300
+        LD BC,ATTRIB_SIZE
 CLR_2:  LD A,E
         LD (HL),E
         INC HL
@@ -591,4 +630,3 @@ CLR_2:  LD A,E
         POP BC
         POP AF
         RET 
- 
