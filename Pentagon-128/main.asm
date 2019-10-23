@@ -18,8 +18,8 @@ KEMPSTON_UP     EQU #03
 KEMPSTON_FIRE   EQU #04
 
 ;AY MODULE REMOVE LATER TO DATA SECTION.
-;       ORG #8000
-;MOD:   INCBIN "MOD_1.C"
+;       ORG #C000
+;MOD:   INCBIN "MOD.C"
 
 ;MAIN PART STARTS FROM 24K, 40KB MAX.
 
@@ -30,6 +30,8 @@ KEMPSTON_FIRE   EQU #04
         PUSH HL         ;STORE FOR SAFE
 
 ;SET INTERRUPT
+
+        ;JR NO_IM2
 
         DI 
         LD HL,#5EFF     ;IM2_ADDR
@@ -42,9 +44,11 @@ KEMPSTON_FIRE   EQU #04
         IM 2
         EI              ;INTS 50 FPS
 
+NO_IM2:
         CALL INIT_GAME
 
-        ;CALL GAME_MAIN_CYCLE
+
+        CALL GAME_MAIN_CYCLE
 
         ;CALL DEBUG_SPRITES
         ;CALL KEMPSTON_JOYSTICK
@@ -86,12 +90,12 @@ BOB_POSITION:           ;GAME COORDINATES
 BOB_DIRECTION:
         DB #00
 
-LOCATION_0:     ;INCBIN "01.C",4096
+LOCATION_0:     INCBIN "01.C",4096
 ;LOCATION_1:    INCBIN "02.C",4096
 ;LOCATION_2:    INCBIN "03.C",4096
 ;LOCATION_3:    INCBIN "04.C",4096
 
-STATUS_BAR:     ;INCBIN "STATUS.C",512
+STATUS_BAR:     INCBIN "STATUS.C",512
 
 ROAD_TILE:
         INCBIN "TILE.C"
@@ -115,12 +119,14 @@ CHARACTERS:
 ;[7]    FLAGS.
 ;VARIABLE PART WITH FRAMES AND DELAYS.
 ;[8..N*[6]]
-;[0]    DELAY OF FRAME IN 50 FPS SPEED.
-;[1,2]  ADRESSES OF ANIMATION FRAMES.
+;[0,1]  ADRESSES OF ANIMATION FRAMES.
+;[2]    DELAY OF FRAME IN 50 FPS SPEED.
+;[3]    RESERVED.
+
 
 ;MAIN CHARACTER STRUCTURE OF THE GAME.
 BOB:
-        DB #01,#12      ;POSITION
+        DB #02,#12      ;POSITION
         DB #04,#04      ;SIZES
         DB 4            ;PARTS
         DB %00000000    ;FLAGS
@@ -132,43 +138,57 @@ BOB:
 ;MAIN CHARACTER PARTS STRUCTURE.
 BOB_1:  DB #00,#00      ;LEFT-UP CORNER
         DB #04,#04      ;MASK
-        DB #00          ;FRAME
-        DB #00          ;DELAY
+        DB #00,#00      ;FRAME AND DELAY
         DB #01          ;ALL FRAMES
         DB %00000010    ;FLAGS(AND)
-        DB #00          ;STATIC
         DW BOB_MASK
+        DB #00,#00      ;STATIC
 
 BOB_2:  DB #00,#00      ;LEFT-UP
         DB #04,#01      ;TOP OF HEAD
         DB #00,#00      ;FRAME AND DELAY
         DB #01          ;ALL
         DB %00000100    ;(OR)
-        DB #00          ;STATIC
         DW BOB_1_1
+        DB #00,#00      ;STATIC
 
 BOB_3:  DB #00,#01      ;NEXT LINES
         DB #04,#01      ;FACE
-        DB #00,#00      ;FRAME AND DELAY
-        DB #01          ;ONE FRAME
+        DB #00,#01      ;FRAME AND DELAY
+        DB #03          ;FRAMES
         DB %00000100    ;(OR)
-        DB #00          ;STATIC
-        DW BOB_2_1
+        DW BOB_2_1      ;DELAY AND FRAMES
+        DB #93,#00
+        DW BOB_2_2
+        DB #04,#00
+        DW BOB_2_3
+        DB #04,#00
 
 BOB_4:  DB #00,#02      ;NEXT LINES
         DB #04,#02      ;FOOTS
-        DB #00,#00      ;FRAME AND DELAY
-        DB #01          ;ONE FRAME
+        DB #00,#01      ;FRAME AND DELAY
+        DB #04          ;4 FRAMES
         DB %00000100    ;(OR)
-        DB #00          ;STATIC
-        DW BOB_3_1
+        DW BOB_3_1      ;DELAY AND FRAMES
+        DB #0C,#00
+        DW BOB_3_2
+        DB #0C,#00
+        DW BOB_3_3
+        DB #0C,#00
+        DW BOB_3_4
+        DB #0C,#00
 
 BOB_MASK:       INCBIN "BOB_MSK.C",128
 BOB_1_1:        INCBIN "BOB_P1F1.C",32
 BOB_2_1:        INCBIN "BOB_P2F1.C",32
+BOB_2_2:        INCBIN "BOB_P2F2.C",32
+BOB_2_3:        INCBIN "BOB_P2F3.C",32
 BOB_3_1:        INCBIN "BOB_P3F1.C",64
+BOB_3_2:        INCBIN "BOB_P3F2.C",64
+BOB_3_3:        INCBIN "BOB_P3F3.C",64
+BOB_3_4:        INCBIN "BOB_P3F4.C",64
 
-BOB_DATA:       INCBIN "BOB.C",128
+BOB_DATA:       ;INCBIN "BOB.C",128
 
 GAME_OBJECTS:
 
@@ -189,7 +209,7 @@ DRAW_ANIMATION:
         PUSH IY
 ;IY - PARTS. IX - MAIN STRUCTURE.
 
-        CALL DRAW_STAT_ELEM
+;       CALL DRAW_STAT_ELEM
 
         LD B,(IX+4)
         PUSH IX
@@ -202,15 +222,47 @@ ANIM_1: PUSH BC
         INC HL
         LD D,(HL)
         INC HL          ;NEXT PART IN HL
-        PUSH HL
+        PUSH HL         ;SAVE PART
         EX DE,HL        ;DE - ADDR PART
         PUSH HL
         POP IY          ;IY - PART STRUC
-        LD L,(IY+9)     ;ADDR OF FRAME
-        LD H,(IY+10)
+
+        RES 0,C         ;DO NOT ADD DELAY
+        LD A,(IY+5)
+        OR A
+        JR Z,ANIM_2     ;STATIC PART
+        DEC (IY+5)      ;CURRENT DELAY
+        JR NZ,ANIM_2
+        SET 0,C         ;SET NEW DELAY
+        INC (IY+4)      ;NEXT FRAME
+        LD A,(IY+6)
+        CP (IY+4)
+        JR NZ,ANIM_2
+        LD (IY+4),0     ;TO 0-FRAME
+ANIM_2: LD A,(IY+4)
+        PUSH IY
+        POP HL          ;ADDR OF 0-FRAME
+        RLCA            ;ADD TO INDEX*4
+        RLCA 
+        ADD A,#08       ;OFFSET OF TABLE
+        LD E,A
+        LD D,#00
+        ADD HL,DE
+        BIT 0,C
+        JR Z,ANIM_3     ;NO NEW DELAY
+        INC HL          ;ADD OFFSET DELAY
+        INC HL
+        LD A,(HL)       ;OFFSET OF DELAY
+        LD (IY+5),A     ;SET NEW DELAY
+        DEC HL          ;TO ADDR OF FRAME
+        DEC HL
+ANIM_3: LD E,(HL)       ;DRAW CURRENT
+        INC HL          ;HL ADDR OF TABLE
+        LD D,(HL)
+        EX DE,HL        ;HL ADDR OF FRAME
         LD A,(IX+0)
-        ADD A,(IY+0)
-        LD D,A
+        ADD A,(IY+0)    ;POSITION WITHOUT
+        LD D,A          ;CHECK OF RANGES
         LD A,(IX+1)
         ADD A,(IY+1)
         LD E,A
@@ -243,8 +295,8 @@ INIT_GAME:
         LD E,%01000111
         CALL CLEAR_SCREEN
 
-        LD IX,BOB
-        CALL DRAW_ANIMATION
+;       LD IX,BOB
+;       CALL DRAW_ANIMATION
 
         POP IY
         POP IX
@@ -268,7 +320,7 @@ GAME_MAIN_CYCLE:
 
         CALL DRAW_STAT_ELEM
 
-DBG_S:  LD BC,#0100     ;MAIN CYCLE
+DBG_S:  LD BC,#1000     ;MAIN CYCLE
 DBG_3:  PUSH BC
 
         LD HL,LAMP_M
@@ -276,6 +328,11 @@ DBG_3:  PUSH BC
         LD BC,#0408
         LD A,2
         HALT 
+
+        LD IX,BOB
+        CALL DRAW_ANIMATION
+        JP DBG_A
+
         CALL DRAW_SPRITE
         LD DE,#140F
         LD BC,#0408
@@ -290,7 +347,7 @@ DRW:    INC A
         LD A,4
         CALL DRAW_SPRITE
         LD A,2
-        LD HL,CHARACTERS
+        LD HL,BOB_DATA
         LD DE,(BOB_POSITION)
         LD BC,#0404
         LD A,1
@@ -320,7 +377,7 @@ DBG_6:  LD (ACTIVE_LOCATION),A
         LD (BOB_POSITION),DE
 DBG_7:  LD A,#04
         OUT (#FE),A
-        POP BC
+DBG_A:  POP BC
         DEC BC
         LD A,B
         OR C
@@ -446,7 +503,9 @@ IM2:    DI
         PUSH IY
         LD A,1
         OUT (#FE),A
-        ;JR IM2_3
+
+        JR IM2_R
+
         LD A,(IM2_COUNTER)
         CP 10
         JR NZ,IM2_1
@@ -463,10 +522,11 @@ IM2_1:  INC A
 IM2_2:  ;JR IM2_RET     ;TESTING COLORS
         IN A,(KEMPSTON_PORT)
         AND KEMPSTON_MASK
-        LD (KEMPSTON),A
+        ;LD (KEMPSTON),A
 ;CALL MINIMAL AY-PLAYER.
 ;       CALL MOD
-        POP IY
+
+IM2_R:  POP IY
         POP IX
         POP HL
         POP DE
@@ -580,7 +640,8 @@ SPR_ST: LD (DE),A       ;STORE BYTE
         INC E
         DEC C
         JR NZ,SPR_3     ;NEW ADDRESS
-SPR_RET:POP IX
+SPR_RET:
+        POP IX
         POP HL
         POP DE
         POP BC
@@ -595,6 +656,8 @@ BACK_PLANE:
         PUSH BC
         PUSH DE
         PUSH HL
+        PUSH IX
+        PUSH IY
         LD IX,BACK_1
         LD B,#10        ;FILL DATA
         LD DE,#0000
@@ -627,6 +690,8 @@ B_PL_2: LD E,(HL)
         LD A,C
         OR B
         JR NZ,B_PL_3
+        POP IY
+        POP IX
         POP HL
         POP DE
         POP BC
@@ -736,4 +801,3 @@ CLR_2:  LD A,E
         POP BC
         POP AF
         RET 
-  
