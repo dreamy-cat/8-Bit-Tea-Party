@@ -1,4 +1,4 @@
-;GLOBAL SYSTEM NAMES AND CONSTANTS.
+﻿;GLOBAL SYSTEM NAMES AND CONSTANTS.
 
 ;SCREEN PARAMETERS, PIXELS AND ATTRIBUTES.
 SCREEN_ADDR     EQU #4000
@@ -96,59 +96,93 @@ WORLD_SIZE_X    EQU 1024
 WORLD_SIZE_Y    EQU 32  ;X AND Y IN PIXELS
 WORLD_LOCATIONS EQU 4
 
+;SYSTEM VARIABLES
+
 KEMPSTON:       DB #00  ;EVERY INTERRUPT
 
+;GAME VARIABLES
+
 ACTIVE_LOCATION:DB #00  ;HERO LOCATION
-BOB_POSITION:   DW #0412;X AND Y OF CENTER
+BOB_POSITION:   DW #0414;X AND Y OF CENTER
 BOB_DIRECTION:  DB #00  ;LEFT OR RIGHT
 
-;TABLE OF ALL CHARACTERS AND OBJECTS
+;GAME WORLD DATA, 16 BYTES FOR EVERY
+;LOCATION, CONTAINS OBJECTS AND
+;CHARACTERS, 4 BYTES FOR EVERY OBJECT.
+;MAXIMUM DATA + 3 OBJECTS.
 ;IN GAME WORLD, ONLY FOR GFX FOR NOW.
-;[0,1]  OBJECT ADDRESS
-;[2]    LOCATION OF OBJECT OR CHARACTER
-;[3]             RESERVED MORE
+;[0]            OBJECTS IN LOCATION
+;[1..3]         RESERVED
+;VARIABLE PART.
+;[4..[0]*4]     OBJECT ADDRESS
+;[5]            PLANE OF OBJECT, PRIORITY
+;[6]            RESERVED
 
 GAME_WORLD:
 LOCATION_0:
-HERO:   DW BOB
+        DB #01,#00      ;OBJECTS AND RES
+LMP_1:  DW LAMP         ;ADDR ANIM
+        DB #00,#00      ;PLANE
+        DUP #03         ;RESERVED
+        DW #0000
         DB #00,#00
-LMP_1:  DW LAMP
-        DB #00,#00
+        EDUP 
+LOCTION_1:
 
 ;STANDARD OBJECTS
 LAMP:   DB #10,#10      ;POS
-        DW #04,#08      ;SIZES
-        DB #01          ;ONE FOR DEBUG
+        DB #04,#08      ;MAXIMUM SIZES
+        DB #04          ;TWO FOR DEBUG
         DB %00000000
         DW LAMP_1
         DW LAMP_2
+        DW LAMP_3
+        DW LAMP_4
 
-LAMP_1: DB #00,#00      ;MASK FOR LAMP
-        DB #04,#08
-        DB #00,#00
+LAMP_1: DB #01,#03      ;MASK FOR STAND
+        DB #02,#05
+        DB #00,#00      ;STAT
         DB #01          ;ALL
-        DB %00110010    ;DRAW-AND-STATIC
-        DW LAMP_DAT_M
+        DB %00110010    ;SINGLE-AND-STATIC
+        DW LAMP_DAT_M0
         DB #00,#00
 
-LAMP_2: DB #00,#00
-        DB #04,#08
-        DB #00,#04
-        DB #02          ;OLD FRAMES
-        DB %00100100    ;DRAW-OR-DYNAMIC
+LAMP_2: DB #01,#03      ;STAND
+        DB #02,#05
+        DB #00,#00
+        DB #01
+        DB %00110100    ;SINGLE-OR-STATIC
+        DW LAMP_DAT_0
+        DB #00,#00      ;NOTHING TO ANIM
+
+LAMP_3: DB #00,#00      ;MASK FOR LAMP
+        DB #04,#03
+        DB #00,#01
+        DB #01
+        DB %00000010    ;DRAW-OR-DYNAMIC
+        DW LAMP_DAT_M1
+        DB #25,#00
+
+LAMP_4: DB #00,#00      ;ANIM FOR LIGHT
+        DB #04,#03
+        DB #00,#01
+        DB #02          ;FRAMES
+        DB %00000100    ;DRAW-OR-DYNAMIC
         DW LAMP_DAT_1
-        DB #04,#00
+        DB #25,#00
         DW LAMP_DAT_2
-        DB #04,#00
+        DB #25,#00
 
-LAMP_DAT_1:     INCBIN "LAMP_01.C",256
-LAMP_DAT_2:     INCBIN "LAMP_02.C",256
-LAMP_DAT_M:     INCBIN "LAMP_M.C",256
+LAMP_DAT_M0:    INCBIN "LMPP2MSK.C",80
+LAMP_DAT_0:     INCBIN "LMP_P2F1.C",80
+LAMP_DAT_M1:    INCBIN "LMPP1MSK.C",96
+LAMP_DAT_1:     INCBIN "LMP_P1F1.C",96
+LAMP_DAT_2:     INCBIN "LMP_P1F2.C",96
 
-LOC_DATA_0:     INCBIN "01.C",4096
-;LOCATION_1:    INCBIN "02.C",4096
-;LOCATION_2:    INCBIN "03.C",4096
-;LOCATION_3:    INCBIN "04.C",4096
+LOC_DATA_0:     INCBIN "BG01.C",4096
+LOC_DATA_1:     INCBIN "BG02.C",4096
+LOC_DATA_2:     INCBIN "BG03.C",4096
+LOC_DATA_3:     INCBIN "BG04.C",4096
 
 STATUS_BAR:     INCBIN "STATUS.C",512
 
@@ -174,7 +208,8 @@ CHARACTERS:
 ;[7]    FLAGS.
 ;       0..3 MOV,AND,OR,XOR FOR SPRITE
 ;       4 IS STATIC PART
-;       5 TO DRAW OR NOT TO DRAW
+;       5 DRAW SINGLE CALL, RESET AFTER
+;       6 DRAW EVERY CALL, COUNT DELAYS
 ;VARIABLE PART WITH FRAMES AND DELAYS.
 ;[8..N*[6]]
 ;[0,1]  ADRESSES OF ANIMATION FRAMES.
@@ -197,7 +232,7 @@ BOB_1:  DB #00,#00      ;LEFT-UP CORNER
         DB #04,#04      ;MASK
         DB #00,#00      ;FRAME AND DELAY
         DB #01          ;ALL FRAMES
-        DB %00110010    ;DRAW+AND+STATIC
+        DB %01010010    ;REDRAW+AND+STATIC
         DW BOB_MASK
         DB #00,#00      ;
 
@@ -205,15 +240,15 @@ BOB_2:  DB #00,#00      ;LEFT-UP
         DB #04,#01      ;TOP OF HEAD
         DB #00,#00      ;FRAME AND DELAY
         DB #01          ;ALL
-        DB %00110100    ;DRAW+OR+STATIC
+        DB %01010100    ;REDRAW+OR+STATIC
         DW BOB_1_1
         DB #00,#00      ;
 
 BOB_3:  DB #00,#01      ;NEXT LINES
         DB #04,#01      ;FACE
-        DB #00,#01      ;FRAME AND DELAY
+        DB #00,#00      ;FRAME AND DELAY
         DB #03          ;FRAMES
-        DB %00100100    ;DRAW+OR
+        DB %01000100    ;REDRAW+OR
         DW BOB_2_1      ;DELAY AND FRAMES
         DB #93,#00
         DW BOB_2_2
@@ -222,10 +257,10 @@ BOB_3:  DB #00,#01      ;NEXT LINES
         DB #04,#00
 
 BOB_4:  DB #00,#02      ;NEXT LINES
-        DB #047,#02     ;FOOTS
+        DB #04,#02      ;FOOTS
         DB #00,#01      ;FRAME AND DELAY
         DB #04          ;4 FRAMES
-        DB %00100100    ;DRAW+OR
+        DB %01000100    ;REDRAW+OR
         DW BOB_3_1      ;DELAY AND FRAMES
         DB #0C,#00
         DW BOB_3_2
@@ -245,8 +280,6 @@ BOB_3_2:        INCBIN "BOB_P3F2.C",64
 BOB_3_3:        INCBIN "BOB_P3F3.C",64
 BOB_3_4:        ;INCBIN "BOB_P3F4.C",64
 
-BOB_DATA:       ;INCBIN "BOB.C",128
-
 ;CREATE SCENE ON EVERY FRAME IN GAME,
 ;UPDATING OBJECTS, CHARACTERS AND OTHER
 ;GRAPHICS ON SCREEN WITH DYNAMIC.
@@ -258,17 +291,54 @@ CREATE_SCENE:
         PUSH DE
         PUSH HL
         PUSH IX
-        ;USING GAME_WORLD_DATA
 
+        JP BUILD
 
+;CREATE LOCATIONS AND OBJECTS
 
+        LD HL,GAME_WORLD
+        LD A,(ACTIVE_LOCATION)
+        RLCA            ;* 16 BYTES
+        RLCA 
+        RLCA 
+        RLCA 
+        LD D,0
+        LD E,A
+        ADD HL,DE       ;HL ADDR LOCATION
+        LD B,(HL)       ;OBJECTS COUNTER
+        INC HL
+        INC HL
+SCENE_1:LD E,(HL)
+        INC HL
+        LD D,(HL)
+        INC HL
+        PUSH DE
         POP IX
+        CALL DRAW_ANIMATION
+        DJNZ SCENE_1
+        JP SCENE_R
+
+;DRAW MAIN CHARACTER REMOVE LOGIC LATER
+
+BUILD:  LD IX,BOB
+        LD HL,BOB_POSITION
+        LD A,(HL)
+        SUB #02         ;BOB CENTER
+        LD (IX+1),A
+        INC HL
+        LD A,(HL)
+        SUB #02
+        LD (IX+0),A
+        CALL DRAW_ANIMATION
+        LD IX,LAMP
+        CALL DRAW_ANIMATION
+
+SCENE_R:POP IX
         POP HL
         POP DE
         POP BC
         POP AF
         RET 
-
 
 ;DRAW ANIMATION FUNCTION IN BYTES.
 ;USING "DRAW_SPRITE" FUNCTION AND STRUC.
@@ -285,12 +355,11 @@ DRAW_ANIMATION:
         PUSH HL
         PUSH IX
         PUSH IY
-        LD B,(IX+4)     ;PARTS
+        LD B,(IX+4)
         PUSH IX
         POP HL
         LD DE,#0006     ;TABLE OF PARTS
         ADD HL,DE
-
 ANIM_1: PUSH BC
         LD E,(HL)
         INC HL
@@ -300,20 +369,23 @@ ANIM_1: PUSH BC
         EX DE,HL        ;DE - ADDR PART
         PUSH HL
         POP IY          ;IY - PART STRUC
-
-        BIT 4,(IY+7)    ;EXTRA BIT
+        LD C,(IY+7)     ;FLAGS IN REG C
+        BIT 4,C         ;EXTRA BIT
         JR NZ,ANIM_2    ;STATIC PART
         DEC (IY+5)      ;CURRENT DELAY
         JR NZ,ANIM_2
-        SET 5,(IY+7)    ;RE-DRAW PART
+        SET 5,C         ;RE-DRAW PART
+        SET 7,C         ;RESET DELAY
         INC (IY+4)      ;NEXT FRAME
         LD A,(IY+4)
         CP (IY+6)
         JR NZ,ANIM_2
         LD (IY+4),0     ;TO 0-FRAME
-ANIM_2: BIT 5,(IY+7)    ;DRAW OR NOT PART
-        JR Z,ANIM_4
-        LD A,(IY+4)
+ANIM_2: BIT 5,C         ;DRAW OR NOT PART
+        JR NZ,ANIM_5
+        BIT 6,C         ;SINGLE OR EVERY
+        JR Z,ANIM_4     ;FRAME TO DRAW
+ANIM_5: LD A,(IY+4)
         PUSH IY
         POP HL          ;ADDR OF 0-FRAME
         RLCA            ;ADD TO INDEX*4
@@ -322,6 +394,8 @@ ANIM_2: BIT 5,(IY+7)    ;DRAW OR NOT PART
         LD E,A
         LD D,#00
         ADD HL,DE
+        BIT 7,C         ;IF NEED TO SET
+        JR Z,ANIM_3
         INC HL          ;ADD OFFSET DELAY
         INC HL
         LD A,(HL)       ;OFFSET OF DELAY
@@ -338,9 +412,9 @@ ANIM_3: LD E,(HL)       ;DRAW CURRENT
         LD A,(IX+1)
         ADD A,(IY+1)
         LD E,A
+        LD A,C          ;DRAW TYPE
         LD B,(IY+2)
         LD C,(IY+3)
-        LD A,(IY+7)
         CALL DRAW_SPRITE
         RES 5,(IY+7)    ;DO NOT DRAW NEXT
 ANIM_4: POP HL
@@ -392,39 +466,13 @@ GAME_MAIN_CYCLE:
 
 DBG_S:  LD BC,#0200     ;MAIN CYCLE
 DBG_3:  PUSH BC
-
-;       LD HL,LAMP_M
-        LD DE,#140F
-        LD BC,#0408
-        LD A,2
         HALT 
-
-        LD IX,BOB
-        CALL DRAW_ANIMATION
-        JP DBG_7
-
-        CALL DRAW_SPRITE
-        LD DE,#140F
-        LD BC,#0408
-        LD A,(LAMP_FRAME)
-        BIT 0,A
-        JR Z,FRAME_2
-        LD HL,LAMP_1
-        JR DRW
-FRAME_2:LD HL,LAMP_2
-DRW:    INC A
-        LD (LAMP_FRAME),A
-        LD A,4
-        CALL DRAW_SPRITE
-        LD A,2
-        LD HL,BOB_DATA
-        LD DE,(BOB_POSITION)
-        LD BC,#0404
-        LD A,1
-        CALL DRAW_SPRITE
-        ;JR DBG_7       ;WITHOUT CONTROL
+        CALL CREATE_SCENE
+        ;JP DBG_7
         CALL KEMPSTON_JOYSTICK
+
         LD DE,(BOB_POSITION)
+
 ;SWITCH SCREENS TEST.
         LD A,D
         CP 28           ;LATER
@@ -443,7 +491,7 @@ DBG_5:  CP 0
         JR Z,DBG_6
         DEC A
 DBG_6:  LD (ACTIVE_LOCATION),A
-        ;CALL DRAW_STAT_ELEM
+        CALL DRAW_BACKGROUND
         LD (BOB_POSITION),DE
 DBG_7:  LD A,#04
         OUT (#FE),A
@@ -574,7 +622,7 @@ IM2:    DI
         LD A,1
         OUT (#FE),A
 
-        JR IM2_R
+        ;JR IM2_R
 
         LD A,(IM2_COUNTER)
         CP 10
@@ -592,7 +640,7 @@ IM2_1:  INC A
 IM2_2:  ;JR IM2_RET     ;TESTING COLORS
         IN A,(KEMPSTON_PORT)
         AND KEMPSTON_MASK
-        ;LD (KEMPSTON),A
+        LD (KEMPSTON),A
 ;CALL MINIMAL AY-PLAYER.
 ;       CALL MOD
 
@@ -871,4 +919,3 @@ CLR_2:  LD A,E
         POP BC
         POP AF
         RET 
-   
