@@ -1,4 +1,4 @@
-﻿;GLOBAL SYSTEM NAMES AND CONSTANTS.
+;GLOBAL SYSTEM NAMES AND CONSTANTS.
 
 ;SCREEN PARAMETERS, PIXELS AND ATTRIBUTES.
 SCREEN_ADDR     EQU #4000
@@ -35,11 +35,8 @@ KEMPSTON_FIRE   EQU #04
         PUSH HL
         PUSH IX
         PUSH IY
-
 ;SET INTERRUPT
-
         ;JR NO_IM2
-
         DI 
         LD HL,#5EFF     ;IM2_ADDR
         LD BC,IM2       ;+FF FROM STACK
@@ -50,20 +47,22 @@ KEMPSTON_FIRE   EQU #04
         LD I,A
         IM 2
         EI              ;INTS 50 FPS
-
 NO_IM2:
-        CALL INIT_GAME
+        ;CALL INIT_GAME
+        ;CALL GAME_MAIN_CYCLE
+        CALL DRAW_BACKGROUND
 
+        LD HL,LOCATION_0
+        LD DE,LOCATION_1
+        LD HL,LOC_DATA_0
 
-        CALL GAME_MAIN_CYCLE
-
-        ;CALL DEBUG_SPRITES
-        ;CALL KEMPSTON_JOYSTICK
+        LD A,0
+        LD (ACTIVE_LOCATION),A
+        CALL CREATE_SCENE
 
 TO_RET: LD A,1          ;RESTORE BORDER
         OUT (#FE),A
-
-        POP IY
+        POP IY          ;RESTORE REGS
         POP IX
         POP HL
         POP DE
@@ -92,9 +91,13 @@ SPRITE_AND      EQU %00000010
 SPRITE_OR       EQU %00000100
 SPRITE_XOR      EQU %00001000
 
+RANDOM_INIT     EQU %10101010
 WORLD_SIZE_X    EQU 1024
 WORLD_SIZE_Y    EQU 32  ;X AND Y IN PIXELS
 WORLD_LOCATIONS EQU 4
+STARS_ON_SKY    EQU 255
+STARS_POSITION  EQU 16  ;AFTER STATUS BAR
+STARS_SIZE      EQU 16  ;MASKS FOR BITS
 
 ;SYSTEM VARIABLES
 
@@ -102,35 +105,61 @@ KEMPSTON:       DB #00  ;EVERY INTERRUPT
 
 ;GAME VARIABLES
 
+STARS:          DUP STARS_ON_SKY
+                DW #0000
+                EDUP 
 ACTIVE_LOCATION:DB #00  ;HERO LOCATION
+LOCATION_ADDR:  DW LOC_DATA_0
 BOB_POSITION:   DW #0414;X AND Y OF CENTER
+BOB_PREV_POS    DW #0000;PREVIOUS POSITION
 BOB_DIRECTION:  DB #00  ;LEFT OR RIGHT
+BOB_ACTION:     DW #0000;ADDR OF ANIMATION
 
-;GAME WORLD DATA, 16 BYTES FOR EVERY
+;GAME WORLD DATA, 64 BYTES FOR EVERY
 ;LOCATION, CONTAINS OBJECTS AND
-;CHARACTERS, 4 BYTES FOR EVERY OBJECT.
-;MAXIMUM DATA + 3 OBJECTS.
+;CHARACTERS, 8 BYTES FOR EVERY OBJECT.
+;MAXIMUM DATA: 5 LOCTIONS AND OBJECTS.
 ;IN GAME WORLD, ONLY FOR GFX FOR NOW.
 ;[0]            OBJECTS IN LOCATION
-;[1..3]         RESERVED
+;[1]            AREAS FOR MOVE IN LOCATION
+;[2..3]         RESERVED
+;[4..15]        5 AREAS MAX, FORMAT
+;               LEFT-UP AND RIGHT DOWN
+;               CORNER IN ATTRIBUTES
 ;VARIABLE PART.
-;[4..[0]*4]     OBJECT ADDRESS
-;[5]            PLANE OF OBJECT, PRIORITY
-;[6]            RESERVED
+;[24..[0]*4]    OBJECT ADDRESS
+;[2,3]          OBJECT POS X,Y(TO SRPITE)
+;[4]            PLANE OF OBJECT, PRIORITY
+;[5..7]         RESERVED
 
 GAME_WORLD:
 LOCATION_0:
-        DB #01,#00      ;OBJECTS AND RES
-LMP_1:  DW LAMP         ;ADDR ANIM
-        DB #00,#00      ;PLANE
-        DUP #03         ;RESERVED
-        DW #0000
+        DB #01,#01      ;OBJECTS AND AREAS
+        DB #00,#00      ;RESERVED
+        DB #00,#14      ;ROAD AREA
+        DB #31,#17
+        DUP #04         ;RESERVED
+        DB #00,#00
         DB #00,#00
         EDUP 
-LOCTION_1:
+LMP_1:  DW LAMP_A       ;ADDR ANIM
+        DB #12,#08      ;POS X,Y
+        DB #00          ;PLANE
+        DB #00,#00,#00  ;RESERVED
+        DUP #04         ;OTHER 4 OBJECTS
+        DW #0000
+        DB #00,#00
+        DB #00
+        DB #00,#00,#00
+        EDUP 
+LOCATION_1:             ;TODO
+        DB #01,#01
+        DB #00,#00
+        DB #00,#14
+        DB #31,#17
 
 ;STANDARD OBJECTS
-LAMP:   DB #10,#10      ;POS
+LAMP_A: DB #10,#10      ;POS
         DB #04,#08      ;MAXIMUM SIZES
         DB #04          ;TWO FOR DEBUG
         DB %00000000
@@ -180,9 +209,9 @@ LAMP_DAT_1:     INCBIN "LMP_P1F1.C",96
 LAMP_DAT_2:     INCBIN "LMP_P1F2.C",96
 
 LOC_DATA_0:     INCBIN "BG01.C",4096
-LOC_DATA_1:     INCBIN "BG02.C",4096
-LOC_DATA_2:     INCBIN "BG03.C",4096
-LOC_DATA_3:     INCBIN "BG04.C",4096
+LOC_DATA_1:     ;INCBIN "BG02.C",4096
+LOC_DATA_2:     ;INCBIN "BG03.C",4096
+LOC_DATA_3:     ;INCBIN "BG04.C",4096
 
 STATUS_BAR:     INCBIN "STATUS.C",512
 
@@ -285,6 +314,18 @@ BOB_3_4:        ;INCBIN "BOB_P3F4.C",64
 ;GRAPHICS ON SCREEN WITH DYNAMIC.
 ;WITHOUT GAME LOGIC. USING GLOBAL DATA.
 
+BG_LEFT:        DUP #20
+                DB #00
+                EDUP 
+
+BG_RIGHT:       DUP #20
+                DB #00
+                EDUP 
+
+;BCKG_BOB:      DUP #80
+;               DB #00
+;               EDUP
+
 CREATE_SCENE:
         PUSH AF
         PUSH BC
@@ -292,46 +333,136 @@ CREATE_SCENE:
         PUSH HL
         PUSH IX
 
-        JP BUILD
+        LD HL,(BOB_POSITION)
+        LD (BOB_PREV_POS),HL
 
 ;CREATE LOCATIONS AND OBJECTS
 
         LD HL,GAME_WORLD
         LD A,(ACTIVE_LOCATION)
-        RLCA            ;* 16 BYTES
-        RLCA 
-        RLCA 
-        RLCA 
+        LD B,6          ;* 64 BYTES
         LD D,0
+SCENE_2:SLA A           ;TWO BYTES
+        JR NC,SCENE_1
+        INC D
+SCENE_1:DJNZ SCENE_2
         LD E,A
         ADD HL,DE       ;HL ADDR LOCATION
         LD B,(HL)       ;OBJECTS COUNTER
-        INC HL
-        INC HL
-SCENE_1:LD E,(HL)
+        LD DE,#0018     ;OFFSET OF OBJECT
+        ADD HL,DE
+SCENE_3:LD E,(HL)
         INC HL
         LD D,(HL)
         INC HL
         PUSH DE
         POP IX
         CALL DRAW_ANIMATION
-        DJNZ SCENE_1
-        JP SCENE_R
+        DJNZ SCENE_3
+
+        LD C,2
+SCN_S:  PUSH BC
+
+
+        ;JP SCENE_R
+
+;RESTORE BACKGROUND FROM BOB PREVIOUS POS
+
+
+
+        LD HL,(LOCATION_ADDR)
+        LD BC,(BOB_PREV_POS)    ;X AND Y
+        LD DE,(BOB_POSITION)
+        LD A,D
+        CP B
+        JR Z,SCENE_4    ;IF NOT HORIZONTAL
+        JR C,SCENE_5    ;IF RIGHT MOVE
+
+        LD HL,BG_LEFT
+        LD A,B
+        SUB #02
+        LD D,A
+        LD A,C
+        SUB #02
+        LD E,A
+        LD BC,#0104
+
+
+        JR SCENE_7
+SCENE_5:
+                        ;IF LEFT MOVE
+        JR SCENE_7
+SCENE_4:LD A,E
+        CP C
+        JR Z,SCENE_8    ;IF NOT VERTICAL
+        JR NC,SCENE_6   ;IF DOWN MOVE
+
+        JR SCENE_7
+SCENE_6:                ;IF UP MOVE
+        ;TODO
+
+SCENE_7:LD A,SPRITE_MOV
+        CALL DRAW_SPRITE
+                        ;RESTORE
+
+SCENE_8:                ;BOB STAY
 
 ;DRAW MAIN CHARACTER REMOVE LOGIC LATER
 
-BUILD:  LD IX,BOB
+SCENE_9:LD IX,BOB
         LD HL,BOB_POSITION
         LD A,(HL)
         SUB #02         ;BOB CENTER
+        LD E,A
         LD (IX+1),A
         INC HL
         LD A,(HL)
         SUB #02
         LD (IX+0),A
+        LD D,A
         CALL DRAW_ANIMATION
-        LD IX,LAMP
-        CALL DRAW_ANIMATION
+
+        ;JR SCENE_R
+
+;SAVE BACKGROUND FOR BOB
+;FOR LEFT AND RIGHT DE - X AND Y
+
+        LD C,4          ;BOB SIZE
+SCN_11: LD HL,SCREEN_ADDR
+        LD A,E
+        AND %00000111   ;LOW PART ADDRESS
+        RRCA 
+        RRCA 
+        RRCA 
+        OR D
+        LD L,A
+        LD A,E          ;2048(1/3) PART
+        AND %00011000
+        LD E,A
+        LD A,H
+        OR E
+        LD H,A
+        PUSH DE
+        LD DE,BG_LEFT
+        LD B,8          ;BYTES PER ATTRIB
+SCN_10: LD A,(HL)
+        LD (DE),A
+        INC H
+        INC DE
+        DJNZ SCN_10
+        POP DE
+        INC E
+        DEC C
+        JR NZ,SCN_11
+
+        LD HL,(BOB_POSITION)
+        LD (BOB_PREV_POS),HL
+        INC H
+        LD (BOB_POSITION),HL
+        POP BC
+        DEC C
+        JP NZ,SCN_S
+
 
 SCENE_R:POP IX
         POP HL
@@ -389,7 +520,7 @@ ANIM_5: LD A,(IY+4)
         PUSH IY
         POP HL          ;ADDR OF 0-FRAME
         RLCA            ;ADD TO INDEX*4
-        RLCA 
+        RLCA            ;PERFORMANCE SLA
         ADD A,#08       ;OFFSET OF TABLE
         LD E,A
         LD D,#00
@@ -420,7 +551,6 @@ ANIM_3: LD E,(HL)       ;DRAW CURRENT
 ANIM_4: POP HL
         POP BC
         DJNZ ANIM_1
-
 AN_RET: POP IY
         POP IX
         POP HL
@@ -500,6 +630,13 @@ DBG_7:  LD A,#04
         LD A,B
         OR C
         JP NZ,DBG_3
+;REUSE LATER
+;       LD A,(ACTIVE_LOCATION)
+;       LD DE,#1000     ;MAIN BACKGROUND
+;       LD HL,LOC_DATA_0
+;       OR A
+;       JR Z,STAT_1
+
 DBG_RET:
         POP IY
         POP IX
@@ -518,6 +655,7 @@ KEMPSTON_JOYSTICK:
         PUSH AF
         PUSH HL
 KMP_J0: LD HL,(BOB_POSITION)
+        LD (BOB_PREV_POS),HL
         LD A,(KEMPSTON)
         BIT KEMPSTON_RIGHT,A
         JR Z,KMP_J1
@@ -567,14 +705,11 @@ DRAW_BACKGROUND:
         PUSH BC
         PUSH DE
         PUSH HL
-        LD A,(ACTIVE_LOCATION)
-        LD DE,#1000     ;MAIN BACKGROUND
-        LD HL,LOC_DATA_0
-        OR A
-        JR Z,STAT_1
-STAT_0: ADD HL,DE
-        DEC A
-        JR NZ,STAT_0
+        LD D,%00000000
+        LD E,%01000111
+        CALL CLEAR_SCREEN
+        LD HL,(LOCATION_ADDR)
+        LD A,0
 STAT_1: LD DE,#0004
         LD BC,#2010
         HALT 
@@ -597,20 +732,24 @@ STAT_2: PUSH AF
         INC D
         DEC A
         JR NZ,STAT_2
+;DRAW A RANDOM STARS ON SKY.
+        LD B,STARS_ON_SKY
+STAT_3: CALL RANDOM
+        AND %00001111   ;FOR 16 PIXELS
+        ADD A,STARS_POSITION
+        LD E,A
+        CALL RANDOM
+        LD D,A
+        CALL SET_PIXEL
+        DJNZ STAT_3
+
         POP HL
         POP DE
         POP BC
         POP AF
         RET 
 
-;TESTING IM2 INTERRUPT.
-
-IM2_ADDR:
-        DW #5800
-IM2_COUNTER:
-        DB #00
-IM2_COLOR:
-        DB %01001111
+;IM2 INTERRUPT PART OF CODE.
 
 IM2:    DI 
         PUSH AF
@@ -619,31 +758,12 @@ IM2:    DI
         PUSH HL
         PUSH IX
         PUSH IY
-        LD A,1
+        LD A,1          ;PERFORMANCE
         OUT (#FE),A
-
-        ;JR IM2_R
-
-        LD A,(IM2_COUNTER)
-        CP 10
-        JR NZ,IM2_1
-IM2_3:  LD HL,(IM2_ADDR)
-        LD A,(IM2_COLOR)
-        LD (HL),A
-        INC HL
-        LD (IM2_ADDR),HL
-        XOR A
-        LD (IM2_COUNTER),A
-        JR IM2_2
-IM2_1:  INC A
-        LD (IM2_COUNTER),A
-IM2_2:  ;JR IM2_RET     ;TESTING COLORS
         IN A,(KEMPSTON_PORT)
         AND KEMPSTON_MASK
         LD (KEMPSTON),A
-;CALL MINIMAL AY-PLAYER.
-;       CALL MOD
-
+;       CALL MOD        ;CALL AY-PLAYER.
 IM2_R:  POP IY
         POP IX
         POP HL
@@ -766,54 +886,28 @@ SPR_RET:
         POP AF
         RET 
 
-;NIGHT SKY WITH STARS.
-;TODO.
+;FUNCTION OF SIMPLE RANDOM 8-BIT VALUE.
+;USING GLOBAL VARAIABLE "RANDOM_INIT".
+;RETURN: A - RANDOM VALUE, FLAGS NOT
+;RESTORED.
 
-BACK_PLANE:
-        PUSH AF
-        PUSH BC
-        PUSH DE
-        PUSH HL
-        PUSH IX
-        PUSH IY
-        LD IX,BACK_1
-        LD B,#10        ;FILL DATA
-        LD DE,#0000
-B_PL_1: LD (IX+0),D
-        LD (IX+1),E
-        INC D
-        INC E
-        INC IX
-        INC IX
-        DJNZ B_PL_1     ;NEXT STAR
-        LD C,#10        ;MAIN LOOP
-B_PL_3: LD HL,BACK_1    ;DRAW PIXELS
-        LD B,#10
-B_PL_2: LD E,(HL)
-        INC HL
-        LD D,(HL)
-        LD A,1
-        CALL SET_PIXEL
-        INC HL
-        DJNZ B_PL_1
-        LD A,1
-;       CALL SIMPLE_DELAY
-        ;LD HL,BACK_1   ;ERASE PIXELS
-        ;LD B,#10
-        ;LD E,(HL)
-        ;INC HL
-        ;LD D,(HL)
+RANDOM_DATA:    DB RANDOM_INIT
+                DB #00  ;STORED DATA
 
-        DEC C
-        LD A,C
-        OR B
-        JR NZ,B_PL_3
-        POP IY
-        POP IX
-        POP HL
-        POP DE
+RANDOM: PUSH BC
+        LD A,(RANDOM_DATA)
+        AND %00001111   ;15 ROTATIONS MAX
+        LD B,A
+        LD A,(RANDOM_DATA)
+RND_1:  RLA 
+        DJNZ RND_1
+        LD BC,(RANDOM_DATA)
+        XOR C
+        ADD A,B
+        LD B,C
+        LD C,A
+        LD (RANDOM_DATA),BC
         POP BC
-        POP AF
         RET 
 
 ;SET PIXEL ON SCREEN, WITH COORDINATES.
