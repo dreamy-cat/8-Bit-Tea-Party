@@ -18,8 +18,8 @@ KEMPSTON_UP     EQU #03
 KEMPSTON_FIRE   EQU #04
 
 ;AY MODULE REMOVE LATER TO DATA SECTION.
-;       ORG #C000
-;MOD:   INCBIN "MOD.C"
+        ORG #C000
+MOD:    INCBIN "MOD.C"
 
 ;MAIN PART STARTS FROM 24K, 40KB MAX.
 
@@ -130,9 +130,9 @@ STARS:          DUP STARS_ON_SKY
 ACTIVE_LOCATION:DB #00  ;HERO LOCATION
 LOCATION_ADDR:  DW LOC_DATA_0
 ;BOB POSITIONS MUST BE EQUAL ON ASSEMBLE
-BOB_START_POS:  DW #0314;DEFAULT
-BOB_POSITION:   DW #0314;X AND Y OF CENTER
-BOB_PREV_POS    DW #0314;PREVIOUS POSITION
+BOB_START_POS:  DW #0215;DEFAULT
+BOB_POSITION:   DW #0215;X AND Y OF CENTER
+BOB_PREV_POS    DW #0215;PREVIOUS POSITION
 BOB_DIRECTION:  DB #00  ;LEFT OR RIGHT
 BOB_ACTION:     DW #0000;ADDR OF ANIMATION
 BOB_ENERGY:     DB #03
@@ -189,7 +189,7 @@ LOCATION_0:
         DB #00,#00
         EDUP 
 LMP_1:  DW LAMP_A       ;ADDR ANIM
-        DB #12,#08      ;POS X,Y
+        DB #15,#0E      ;POS X,Y
         DB #00          ;PLANE
         DB #00,#00,#00  ;RESERVED
         DUP #04         ;OTHER 4 OBJECTS
@@ -199,7 +199,7 @@ LMP_1:  DW LAMP_A       ;ADDR ANIM
         DB #00,#00,#00
         EDUP 
 LOCATION_1:             ;TODO
-        DB #00,#01      ;OBJ AND LOC
+        DB #01,#01      ;OBJ AND LOC
         DB #00,#00      ;RESERVED
         DB #00,#14
         DB #31,#17
@@ -207,7 +207,11 @@ LOCATION_1:             ;TODO
         DB #00,#00
         DB #00,#00
         EDUP 
-        DUP #05         ;5 OBJECTS
+DOG_A:  DW DOG          ;ADDR ANIM
+        DB #15,#14      ;POS X,Y
+        DB #00          ;PLANE
+        DB #00,#00,#00  ;RESERVED
+        DUP #04         ;4 OBJECTS
         DW #0000
         DB #00,#00
         DB #00
@@ -222,7 +226,7 @@ LOCATION_2:             ;TODO
         DB #00,#00
         DB #00,#00
         EDUP 
-        DUP #05         ;5 OBJECTS
+        DUP #05         ;4 OBJECTS
         DW #0000
         DB #00,#00
         DB #00
@@ -280,16 +284,41 @@ LAMP_BG:        DUP 80
                 DB #00
                 EDUP 
 
+DOG:    DB #10,#10      ;POS
+        DB #04,#03      ;MAXIMUM SIZES
+        DB #01          ;TWO FOR DEBUG
+        DB %00000000
+        DW DOG_1
+DOG_1:  DB #00,#00      ;ONE PART
+        DB #04,#03
+        DB #00,#00      ;STAT
+        DB #01          ;ALL
+        DB %10110001    ;SINGLE-AND-STATIC
+        DW DOG_DAT_0    ;AND-OR TEST
+        DW #0000        ;MASK
+        DW #0000        ;BG
+        DB #00,#00
+
 LAMP_DAT_M0:    INCBIN "LMPP2MSK.C",80
 LAMP_DAT_0:     INCBIN "LMP_P2F1.C",80
 LAMP_DAT_M1:    INCBIN "LMPP1MSK.C",96
 LAMP_DAT_1:     INCBIN "LMP_P1F1.C",96
 LAMP_DAT_2:     INCBIN "LMP_P1F2.C",96
 
+DOG_DAT_0:      INCBIN "CHAR_1.C",96
+MAN_DAT_0:      INCBIN "CHAR_2.C",80
+
+LAMP_SHAD_0:    INCBIN "LMPSHD_C.C",8
+LAMP_SHAD_1:    INCBIN "LMPSHD_V.C",8
+LAMP_SHAD_2:    INCBIN "LMPSHD_H.C",8
+LAMP_SHAD_3:    DUP 08
+                DB #00
+                EDUP 
+
 LOC_DATA_0:     INCBIN "BG01.C",4096
-LOC_DATA_1:     ;INCBIN "BG02.C",4096
-LOC_DATA_2:     ;INCBIN "BG03.C",4096
-LOC_DATA_3:     ;INCBIN "BG04.C",4096
+LOC_DATA_1:     INCBIN "BG02.C",4096
+LOC_DATA_2:     INCBIN "BG03.C",4096
+LOC_DATA_3:     INCBIN "BG04.C",4096
 
 ROAD_TILE:      INCBIN  "TILE2X3.C"
 
@@ -391,9 +420,6 @@ BOB_2_2:        INCBIN "BOB_P2F2.C",64
 BOB_2_3:        INCBIN "BOB_P2F3.C",64
 BOB_2_4:        ;INCBIN "BOB_P3F4.C",64
 
-DOG_1:          INCBIN "CHAR_1.C",96
-MAN_1:          INCBIN "CHAR_2.C",80
-
 ;CREATE SCENE, ON EVERY FRAME IN GAME,
 ;DRAW/UPDATE ALL OBJECTS IF NEEDED
 ;ON SCREEN, SAVE BACKGROUND FOR HERO.
@@ -410,7 +436,7 @@ CREATE_SCENE:
 
 ;CREATE LOCATIONS AND OBJECTS
         PUSH AF         ;SAVE FLAG
-        JP SCENE_4
+        ;JP SCENE_4
         LD HL,GAME_WORLD
         LD A,(ACTIVE_LOCATION)
         LD B,6          ;* 64 BYTES
@@ -429,25 +455,21 @@ SCENE_1:DJNZ SCENE_2
 
         LD DE,#0018     ;OFFSET OF OBJECT
         ADD HL,DE
-SCENE_3:LD E,(HL)
+        PUSH HL
+        POP IY
+SCENE_3:LD E,(IY+0)
         INC HL
-        LD D,(HL)
+        LD D,(IY+1)
         INC HL
         PUSH DE
         POP IX
+        LD A,(IY+2)
+        LD (IX+0),A
+        LD A,(IY+3)
+        LD (IX+1),A
+
         CALL DRAW_ANIMATION
         DJNZ SCENE_3
-
-;DEBUG CYCLE BACKGROUND
-        POP AF
-
-        LD HL,LAMP_BG
-        LD DE,#0907
-        LD BC,#0205
-        LD A,SPRITE_MOV
-        CALL DRAW_SPRITE
-
-        JP SCENE_R
 
 SCENE_4:POP AF
         OR A
@@ -641,15 +663,17 @@ GAME_MAIN_CYCLE:
         PUSH IY
 ;TODO THINK LATER ON SIMPLE FUNCTION
         CALL DRAW_LOCATION
+
         ;JP DBG_RET
 
-DBG_S:  LD BC,#0100     ;MAIN CYCLE
+DBG_S:  LD BC,#2000     ;MAIN CYCLE
 DBG_3:  PUSH BC
         HALT 
         XOR A
         CALL CREATE_SCENE
 
         ;JP DBG_7
+
 ;TODO MOVING LOGIC
         LD DE,(BOB_POSITION)
         LD (BOB_PREV_POS),DE
@@ -737,7 +761,7 @@ KMP_J2: BIT KEMPSTON_DOWN,A
 KMP_J3: BIT KEMPSTON_UP,A
         JR Z,KMP_J4
         LD A,L
-        CP 12           ;GLOBAL
+        CP 20           ;GLOBAL
         JR Z,KMP_J6
         DEC L
         JR KMP_J5
@@ -762,8 +786,12 @@ DRAW_LOCATION:
         PUSH DE
         PUSH HL
         LD D,%00000000
+        ;LD D,%11111111
         LD E,%01000111
         CALL CLEAR_SCREEN
+
+        ;JP LMP_T
+
         LD HL,(LOCATION_ADDR)
         LD A,(ACTIVE_LOCATION)
         OR A
@@ -843,7 +871,64 @@ STAT_5: ADD A,STARS_POSITION
         CALL SET_PIXEL
         DJNZ STAT_3
 
-        POP HL
+;TESTING SHADOW FOR LAMP, MOVE TO FUNCTION
+
+LMP_T:  LD A,(ACTIVE_LOCATION)
+        OR A
+        JP NZ,DRAW_LR
+        LD A,1          ;WITHOT CHARACTERS
+        CALL CREATE_SCENE
+
+        LD DE,#170E     ;CORNER
+        LD B,#01
+        LD HL,LAMP_SHAD_0
+        LD A,SPRITE_AND
+LMP_S1: PUSH BC
+        LD BC,#0101
+        CALL DRAW_SPRITE
+        INC D
+        POP BC
+        DJNZ LMP_S1
+        LD DE,#180E     ;VERTICAL RIGHT
+        LD HL,LAMP_SHAD_1
+        LD B,8
+        LD A,SPRITE_AND
+LMP_S2: PUSH BC
+        LD BC,#0101
+        CALL DRAW_SPRITE
+        INC D
+        POP BC
+        DJNZ LMP_S2
+        LD DE,#170F     ;HORIZONTAL DOWN
+        LD HL,LAMP_SHAD_2
+        LD B,9
+        LD A,SPRITE_AND
+LMP_S3: PUSH BC
+        LD BC,#0101
+        CALL DRAW_SPRITE
+        INC E
+        POP BC
+        DJNZ LMP_S3
+        LD HL,LAMP_SHAD_3
+        LD DE,#180F     ;OTHER DARK PART
+        LD BC,#0809
+LMP_S5: PUSH BC
+        PUSH DE
+LMP_S4: PUSH BC
+        LD BC,#0101
+        LD A,SPRITE_MOV
+        CALL DRAW_SPRITE
+        POP BC
+        INC D
+        DJNZ LMP_S4
+        POP DE
+        INC E
+        POP BC
+        DEC C
+        JR NZ,LMP_S5
+
+
+DRAW_LR:POP HL
         POP DE
         POP BC
         POP AF
@@ -863,7 +948,7 @@ IM2:    DI
         IN A,(KEMPSTON_PORT)
         AND KEMPSTON_MASK
         LD (KEMPSTON),A
-;       CALL MOD        ;CALL AY-PLAYER.
+        CALL MOD        ;CALL AY-PLAYER.
 IM2_R:  POP IY
         POP IX
         POP HL
