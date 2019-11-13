@@ -49,11 +49,28 @@ KEMPSTON_FIRE   EQU #04
         EI              ;INTS 50 FPS
 NO_IM2:
         CALL INIT_GAME
-
-        ;CALL DRAW_BACKGROUND
+        CALL DRAW_LOCATION
+        ;XOR A
         ;CALL CREATE_SCENE
+        ;CALL GAME_MAIN_CYCLE
 
-        CALL GAME_MAIN_CYCLE
+        ;LD IX,BOB
+        ;CALL DRAW_ANIMATION
+
+        JP TO_RET
+
+        LD A,SPRITE_MOV
+        OR SPRITE_SAV
+        LD DE,#1110
+        LD BC,#0404
+        LD HL,TEST_SPR
+        LD IY,BOB_R1
+        CALL DRAW_SPRITE
+
+        PUSH IY
+        POP HL
+        LD A,SPRITE_MOV
+        CALL DRAW_SPRITE
 
         JP TO_RET
 
@@ -97,7 +114,7 @@ TO_RET: LD A,1          ;RESTORE BORDER
 ;GLOBAL STATIC VARIABLES.
 
 TEST_SPR:
-        DUP 20
+        DUP 64
         DB %10101010
         DB %01010101
         EDUP 
@@ -314,11 +331,12 @@ LAMP_SHAD_2:    INCBIN "LMPSHD_H.C",8
 LAMP_SHAD_3:    DUP 08
                 DB #00
                 EDUP 
+LAMP_SHAD_4:    INCBIN "LMPSHD.C",32
 
 LOC_DATA_0:     INCBIN "BG01.C",4096
-LOC_DATA_1:     INCBIN "BG02.C",4096
-LOC_DATA_2:     INCBIN "BG03.C",4096
-LOC_DATA_3:     INCBIN "BG04.C",4096
+LOC_DATA_1:     ;INCBIN "BG02.C",4096
+LOC_DATA_2:     ;INCBIN "BG03.C",4096
+LOC_DATA_3:     ;INCBIN "BG04.C",4096
 
 ROAD_TILE:      INCBIN  "TILE2X3.C"
 
@@ -531,8 +549,6 @@ SCENE_R:POP IX
 ;KNOWN BUG: USING STS DEBUGGER IN FUSE,
 ;SOMETIMES RANDOM DATA SAVED TO MEMORY.
 
-ANIM_FRAME_POS: DW #0000 ;COORDS FROM (IX)
-
 DRAW_ANIMATION:
         PUSH AF
         PUSH BC
@@ -585,7 +601,6 @@ ANIM_5: RES 5,(IY+7)    ;NOT DRAW NEXT FR
         LD D,(IX+0)     ;SAVE BASE POS
         LD E,(IX+1)
         PUSH IX         ;SAVE IX
-;       LD (ANIM_FRAME_POS),DE
         PUSH HL         ;HL TO IX
         POP IX          ;IX - FRAME TABLE
         BIT 0,B         ;IF NEED TO SET
@@ -593,7 +608,6 @@ ANIM_5: RES 5,(IY+7)    ;NOT DRAW NEXT FR
         LD A,(IX+6)     ;OFFSET OF DELAY
         LD (IY+5),A     ;SET NEW DELAY
 ANIM_3:
-        ;LD DE,(ANIM_FRAME_POS)
         LD A,D
         ADD A,(IY+0)    ;POSITION WITHOUT
         LD D,A          ;CHECK OF RANGES
@@ -670,7 +684,7 @@ GAME_MAIN_CYCLE:
 
         ;JP DBG_RET
 
-DBG_S:  LD BC,#2000     ;MAIN CYCLE
+DBG_S:  LD BC,#0100     ;MAIN CYCLE
 DBG_3:  PUSH BC
         HALT 
         XOR A
@@ -789,8 +803,8 @@ DRAW_LOCATION:
         PUSH BC
         PUSH DE
         PUSH HL
-        LD D,%00000000
-        ;LD D,%11111111
+        ;LD D,%00000000
+        LD D,%11111111
         LD E,%01000111
         CALL CLEAR_SCREEN
 
@@ -883,7 +897,45 @@ LMP_T:  LD A,(ACTIVE_LOCATION)
         LD A,1          ;WITHOT CHARACTERS
         CALL CREATE_SCENE
 
-        LD DE,#170E     ;CORNER
+        LD B,19
+        LD DE,#1705
+L_S1:   PUSH BC
+        LD HL,LAMP_SHAD_4
+        LD A,E
+        CP #17
+        JR NZ,L_S3
+        LD BC,#0201
+        JR L_S4
+L_S3:   LD BC,#0202
+L_S4:   LD A,SPRITE_AND
+        CALL DRAW_SPRITE
+        POP BC
+        INC E
+        INC E
+        DJNZ L_S1
+
+        LD HL,LAMP_SHAD_3
+        LD DE,#1905     ;OTHER DARK PART
+        LD B,7
+        LD C,19
+L_S6:   PUSH BC
+        PUSH DE
+L_S5:   PUSH BC
+        LD BC,#0101
+        LD A,SPRITE_MOV
+        CALL DRAW_SPRITE
+        POP BC
+        INC D
+        DJNZ L_S5
+        POP DE
+        INC E
+        POP BC
+        DEC C
+        JR NZ,L_S6
+
+        JP DRAW_LR      ;OLD PART
+
+        LD DE,#170E     ;CORNER OLD
         LD B,#01
         LD HL,LAMP_SHAD_0
         LD A,SPRITE_AND
@@ -930,7 +982,6 @@ LMP_S4: PUSH BC
         POP BC
         DEC C
         JR NZ,LMP_S5
-
 
 DRAW_LR:POP HL
         POP DE
@@ -982,17 +1033,20 @@ IM2_R:  POP IY
 ;IX OPTIONAL ADDR FOR 'AND' PART OF 4 BIT.
 ;IY OPTIONAL ADDR FOR STORE SCREEN DATA
 
-SPRITE_JMP:     DW #0000
-SPRITE_FLAGS:   DB #00
-
 DRAW_SPRITE:
         PUSH AF
+        EX AF,AF'       ;SAVE AF' TOO
+        PUSH AF
+        EX AF,AF'
         PUSH BC
         PUSH DE
         PUSH HL
         PUSH IX
         PUSH IY
-        LD (SPRITE_FLAGS),A
+        PUSH AF         ;AF' SPRITE FLAGS
+        EX AF,AF'
+        POP AF
+        EX AF,AF'
         PUSH BC         ;CHECK SIZES
         LD A,D
         ADD A,B
@@ -1011,29 +1065,6 @@ DRAW_SPRITE:
 SPR_ERR:POP BC
         JP SPR_RET
 SPR_OK: POP BC
-        LD A,(SPRITE_FLAGS)
-        PUSH HL
-        BIT 0,A         ;ADDRESS OF JUMP
-        JR Z,SPR_4      ;TYPE DRAW MOVE
-        LD HL,SPR_MOV
-        JR SPR_DRW
-SPR_4:  BIT 1,A
-        JR Z,SPR_5      ;AND DRAW(MASK)
-        LD HL,SPR_AND
-        JR SPR_DRW
-SPR_5:  BIT 2,A         ;OR DRAW(UNION)
-        JR Z,SPR_6
-        LD HL,SPR_OR
-        JR SPR_DRW
-SPR_6:  BIT 3,A         ;AND-OR PART
-        JR Z,SPR_7      ;IN ONE CALL
-        LD HL,SPR_A_O
-        JR SPR_DRW
-SPR_7:  BIT 4,A         ;JUST SAVE SCREEN
-        JP Z,SPR_RET    ;NOTHING TO DO
-        LD HL,SPR_SAV
-SPR_DRW:LD (SPRITE_JMP),HL ;SAVE ADDRESS
-        POP HL
 SPR_3:  PUSH DE         ;SAVE COORDS
         PUSH HL         ;MAKE ADDRESS
         LD HL,SCREEN_ADDR
@@ -1057,27 +1088,39 @@ SPR_3:  PUSH DE         ;SAVE COORDS
         LD C,#08        ;DRAW 8 LINES * X
 SPR_2:  PUSH BC
         PUSH DE         ;SAVE LINE ADDR.
-SPR_1:  LD A,(SPRITE_FLAGS)
+SPR_1:  EX AF,AF'
         BIT 4,A
         JR Z,SPR_NSV    ;NOT SAVE SCREEN
-        LD A,(DE)       ;DRAW 1 LINE
-        LD (IY+0),A
+        EX AF,AF'
+        LD A,(DE)       ;SAVE BG
+        LD (IY+0),A     ;44 TACTS
         INC IY
-SPR_NSV:PUSH IY
-        LD IY,(SPRITE_JMP)
+        EX AF,AF'
+SPR_NSV:BIT 3,A         ;AND-OR PART
+        JR Z,SPR_MOV    ;ORDED IN MORE
+        EX AF,AF'       ;CALLS IN GAME
         LD A,(DE)
-        JP (IY)         ;INDERECT CALL
-SPR_AND:AND (HL)
-        JR SPR_ST       ;TYPES OF DRAW
-SPR_OR: OR (HL)
-        JR SPR_ST
-SPR_A_O:AND (IX+0)      ;COMPLEX AND-OR
+        AND (IX+0)
+        OR (HL)         ;57 TACTS
         INC IX
-        OR (HL)
+        JR SPR_ST       ;TO STORE
+SPR_MOV:BIT 0,A         ;MOVE PART
+        JR Z,SPR_AND
+        EX AF,AF'
+        LD A,(HL)       ;21 TACTS
         JR SPR_ST
-SPR_MOV:LD A,(HL)
+SPR_AND:BIT 1,A         ;AND PART
+        JR Z,SPR_OR
+        EX AF,AF'
+        LD A,(DE)       ;28 TACTS
+        AND (HL)
+        JR SPR_ST
+SPR_OR: BIT 2,A         ;OR PART
+        JR Z,SPR_ST     ;SAVE ZERO TO SPR
+        EX AF,AF'       ;18 TACTS
+        LD A,(DE)
+        OR (HL)
 SPR_ST: LD (DE),A       ;STORE BYTE
-SPR_SAV:POP IY          ;JUST SAVE SCREEN
         INC HL
         INC DE
         DJNZ SPR_1
@@ -1091,11 +1134,13 @@ SPR_SAV:POP IY          ;JUST SAVE SCREEN
         INC E
         DEC C
         JR NZ,SPR_3     ;NEW ADDRESS
-SPR_RET:
-        POP IY
+SPR_RET:POP IY
         POP IX
         POP HL
         POP DE
         POP BC
+        EX AF,AF'       ;RESTORE AF'
+        POP AF
+        EX AF,AF'
         POP AF
         RET 
