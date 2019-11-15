@@ -49,6 +49,10 @@ KEMPSTON_FIRE   EQU #04
         EI              ;INTS 50 FPS
 NO_IM2:
         CALL INIT_GAME
+        LD A,1
+        LD (ACTIVE_LOCATION),A
+        LD HL,LOCATION_1
+
         CALL DRAW_LOCATION
         ;XOR A
         ;CALL CREATE_SCENE
@@ -135,6 +139,12 @@ STARS_ON_SKY    EQU 255
 STARS_POSITION  EQU 16  ;AFTER STATUS BAR
 STARS_SIZE      EQU 24  ;2 ATTRIBUTES
 
+;OBJECT TYPES
+
+OBJ_EMPTY       EQU #00
+OBJ_LAMP_ON     EQU #01
+OBJ_LAMP_OFF    EQU #02
+
 ;SYSTEM VARIABLES
 
 KEMPSTON:       DB #00  ;EVERY INTERRUPT
@@ -192,8 +202,10 @@ ITEM_B:         INCBIN "ITM_B.C",72
 ;VARIABLE PART.
 ;[24..[0]*4]    OBJECT ADDRESS
 ;[2,3]          OBJECT POS X,Y(TO SRPITE)
-;[4]            PLANE OF OBJECT, PRIORITY
-;[5..7]         RESERVED
+;[4]            OBJECT TYPE
+;[5]            COMMON FLAGS
+;[6]            OBJECT PLANE, PRIORITY
+;[7]            RESERVED
 
 GAME_WORLD:
 LOCATION_0:
@@ -205,8 +217,8 @@ LOCATION_0:
         DB #00,#00
         DB #00,#00
         EDUP 
-LMP_1:  DW LAMP_A       ;ADDR ANIM
-        DB #15,#0E      ;POS X,Y
+LMP_1:  DW LAMP_ON      ;ADDR ANIM
+        DB #1C,#0D      ;POS X,Y
         DB #00          ;PLANE
         DB #00,#00,#00  ;RESERVED
         DUP #04         ;OTHER 4 OBJECTS
@@ -216,7 +228,7 @@ LMP_1:  DW LAMP_A       ;ADDR ANIM
         DB #00,#00,#00
         EDUP 
 LOCATION_1:             ;TODO
-        DB #01,#01      ;OBJ AND LOC
+        DB #02,#01      ;OBJ AND LOC
         DB #00,#00      ;RESERVED
         DB #00,#14
         DB #31,#17
@@ -224,11 +236,15 @@ LOCATION_1:             ;TODO
         DB #00,#00
         DB #00,#00
         EDUP 
+LMP_2:  DW LAMP_ON      ;ADDR ANIM
+        DB #05,#05      ;POS X,Y
+        DB #00          ;PLANE
+        DB #00,#00,#00  ;RESERVED
 DOG_A:  DW DOG          ;ADDR ANIM
         DB #15,#14      ;POS X,Y
         DB #00          ;PLANE
         DB #00,#00,#00  ;RESERVED
-        DUP #04         ;4 OBJECTS
+        DUP #03         ;3 OBJECTS
         DW #0000
         DB #00,#00
         DB #00
@@ -266,7 +282,7 @@ LOCATION_3:             ;TODO
         EDUP 
 
 ;STANDARD OBJECTS
-LAMP_A: DB #10,#10      ;POS
+LAMP_ON:DB #05,#05      ;POS
         DB #04,#08      ;MAXIMUM SIZES
         DB #02          ;TWO FOR DEBUG
         DB %00000000
@@ -277,10 +293,10 @@ LAMP_1: DB #01,#03      ;STAND WITH MASK
         DB #02,#05
         DB #00,#00      ;STAT
         DB #01          ;ALL
-        DB %10111000    ;SINGLE-AND-STATIC
+        DB %01101000    ;SINGLE-AND-STATIC
         DW LAMP_DAT_0   ;AND-OR TEST
         DW LAMP_DAT_M0  ;MASK
-        DW LAMP_BG      ;SAVING BG
+        DW #0000        ;NO SAVE DELAY
         DB #00,#00      ;NO DELAYS
 
 LAMP_2: DB #00,#00      ;ANIM FOR LIGHT
@@ -297,9 +313,23 @@ LAMP_2: DB #00,#00      ;ANIM FOR LIGHT
         DW #0000        ;NOT SAVING BG
         DB #25,#00
 
-LAMP_BG:        DUP 80
-                DB #00
-                EDUP 
+LAMP_OFF:
+        DB #10,#10      ;POS
+        DB #04,#08      ;MAXIMUM SIZES
+        DB #02          ;TWO FOR DEBUG
+        DB %00000000
+        DW LAMP_1       ;ALREADY DEFINE
+        DW LAMP_3       ;SWITCH OFF
+
+LAMP_3: DB #00,#00      ;ANIM FOR LIGHT
+        DB #04,#03
+        DB #00,#01
+        DB #01          ;FRAMES
+        DB %01101000    ;DRAW-STATIC
+        DW LAMP_DAT_3   ;AND-OR
+        DW LAMP_DAT_M1
+        DW #0000        ;NOT SAVING BG
+        DB #00,#00
 
 DOG:    DB #10,#10      ;POS
         DB #04,#03      ;MAXIMUM SIZES
@@ -321,17 +351,16 @@ LAMP_DAT_0:     INCBIN "LMP_P2F1.C",80
 LAMP_DAT_M1:    INCBIN "LMPP1MSK.C",96
 LAMP_DAT_1:     INCBIN "LMP_P1F1.C",96
 LAMP_DAT_2:     INCBIN "LMP_P1F2.C",96
+LAMP_DAT_3:     INCBIN "LMP_P1F3.C",96
 
 DOG_DAT_0:      INCBIN "CHAR_1.C",96
 MAN_DAT_0:      INCBIN "CHAR_2.C",80
 
-LAMP_SHAD_0:    INCBIN "LMPSHD_C.C",8
-LAMP_SHAD_1:    INCBIN "LMPSHD_V.C",8
-LAMP_SHAD_2:    INCBIN "LMPSHD_H.C",8
-LAMP_SHAD_3:    DUP 08
+LAMP_SHAD_B:    DUP 08
                 DB #00
                 EDUP 
-LAMP_SHAD_4:    INCBIN "LMPSHD.C",32
+LAMP_SHAD_L:    INCBIN "LMPSHD.C",32
+LAMP_SHAD_R:    INCBIN "ROADSHD.C",72
 
 LOC_DATA_0:     INCBIN "BG01.C",4096
 LOC_DATA_1:     ;INCBIN "BG02.C",4096
@@ -342,7 +371,7 @@ ROAD_TILE:      INCBIN  "TILE2X3.C"
 
 CHARACTERS:
 ;CONSTANT PART OF CHARACTER STRUCTURE.
-;[0,1]  POSITION X AND Y ON SCREEN.
+;[0,1] POSITION X AND Y ON SCREEN.
 ;[2,3]  SIZES OF CHAR X AND Y, ALL.
 ;[4]    PARTS OF CHARACTER AND ANIMATION.
 ;[5]    FLAGS FOR CHARACTER.
@@ -358,10 +387,10 @@ CHARACTERS:
 ;[6]    ANIMATIONS TOTAL.
 ;[7]    FLAGS.
 ;       0..3 MOV,AND,OR,AND_OR FOR SPRITE
-;       4 IS STATIC PART
-;       5 DRAW SINGLE CALL, RESET AFTER
-;       6 DRAW EVERY CALL, COUNT DELAYS
-;       7 SAVE BACKGROUND
+;       4 SAVE BACKGROUND
+;       5 IS STATIC PART
+;       6 DRAW SINGLE CALL, RESET AFTER
+;       7 DRAW EVERY CALL, COUNT DELAYS
 ;VARIABLE PART WITH FRAMES AND DELAYS.
 ;[8..N*[6]]
 ;[0,1]  ADRESSE OF ANIMATION FRAME.
@@ -374,7 +403,7 @@ CHARACTERS:
 BOB:
         DB #02,#12      ;POSITION
         DB #04,#04      ;SIZES
-        DB 3            ;PARTS
+        DB 2            ;PARTS
         DB %00000000    ;FLAGS
         DW BOB_1        ;PART 1 - FACE
         DW BOB_2        ;PART 2 - FOOTS
@@ -403,7 +432,7 @@ BOB_2:  DB #00,#02      ;NEXT LINES
         DB #04,#02      ;FOOTS
         DB #00,#01      ;FRAME AND DELAY
         DB #04          ;4 FRAMES
-        DB %11001000    ;REDRAW+AND-OR
+        DB %11011000    ;REDRAW+AND-OR
         DW BOB_2_1      ;DELAY AND FRAMES
         DW BOB_M2
         DW BOB_R2
@@ -451,10 +480,18 @@ INCLUDE "LIBRARY.A",7
 
 CREATE_SCENE:
         PUSH AF
+
+
+        EX AF,AF'
+        PUSH AF
+        EX AF,AF'
         PUSH BC
         PUSH DE
         PUSH HL
         PUSH IX
+        PUSH IY
+
+
 
 ;CREATE LOCATIONS AND OBJECTS
         PUSH AF         ;SAVE FLAG
@@ -489,7 +526,6 @@ SCENE_3:LD E,(IY+0)
         LD (IX+0),A
         LD A,(IY+3)
         LD (IX+1),A
-
         CALL DRAW_ANIMATION
         DJNZ SCENE_3
 
@@ -534,7 +570,8 @@ SCENE_9:LD IX,BOB
         DEC C
         ;JP NZ,SCN_S
 
-SCENE_R:POP IX
+SCENE_R:POP IY
+        POP IX
         POP HL
         POP DE
         POP BC
@@ -572,22 +609,22 @@ ANIM_1: PUSH BC
         PUSH HL
         POP IY          ;IY - PART STRUC
         LD C,(IY+7)     ;FLAGS IN REG C
-        BIT 4,C         ;EXTRA BIT
+        BIT 5,C         ;EXTRA BIT
         JR NZ,ANIM_2    ;STATIC PART
         DEC (IY+5)      ;CURRENT DELAY
         JR NZ,ANIM_2
-        SET 5,C         ;RE-DRAW PART
+        SET 6,C         ;RE-DRAW PART
         SET 0,B         ;RESET DELAY IN B
         INC (IY+4)      ;NEXT FRAME
         LD A,(IY+4)
         CP (IY+6)
         JR NZ,ANIM_2
         LD (IY+4),0     ;TO 0-FRAME
-ANIM_2: BIT 5,C         ;DRAW OR NOT PART
+ANIM_2: BIT 6,C         ;DRAW OR NOT PART
         JR NZ,ANIM_5
-        BIT 6,C         ;SINGLE OR EVERY
+        BIT 7,C         ;SINGLE OR EVERY
         JR Z,ANIM_4     ;FRAME TO DRAW
-ANIM_5: RES 5,(IY+7)    ;NOT DRAW NEXT FR
+ANIM_5: RES 6,(IY+7)    ;NOT DRAW NEXT FR
         LD A,(IY+4)     ;DRAW PART
         PUSH IY
         POP HL          ;ADDR OF 0-FRAME
@@ -617,7 +654,7 @@ ANIM_3:
         LD A,(IY+7)     ;A - FLAGS
         LD B,(IY+2)     ;BC - SIZES
         LD C,(IY+3)
-        BIT 7,A         ;NEED SAVE BG
+        BIT 4,A         ;NEED SAVE BG
         JR Z,ANIM_6
         OR SPRITE_SAV
         LD L,(IX+4)     ;HL - BACKGROUND
@@ -634,7 +671,7 @@ ANIM_6: LD L,(IX+0)     ;HL - FRAME ADDR
         PUSH HL
         POP IX          ;IX - MASK
         POP HL
-ANIM_7: AND %00011111   ;DRAW TYPE
+ANIM_7: ;AND SPRITE_MSK ;DRAW TYPE
         CALL DRAW_SPRITE
         POP IX          ;RESTORE STRUC
 ANIM_4: POP HL
@@ -658,7 +695,8 @@ INIT_GAME:
         PUSH HL
         PUSH IX
         PUSH IY
-        LD D,0
+        LD D,%00000000
+        LD D,%11111111
         LD E,%01000111
         CALL CLEAR_SCREEN
 
@@ -793,9 +831,12 @@ KMP_J6: POP HL
         POP AF
         RET 
 
+;DRAW A SHADE FOR LAMP OBJECT
+;
+
 ;DRAW GAME ACTIVE LOCATION ON SCREEN.
 ;LOCATION, ROAD AND STATUS BAR.
-;USGIN GLOBAL VARIABLES:
+;USING GLOBAL VARIABLES:
 ;ACTIVE_LOCATION - 0..3.
 
 DRAW_LOCATION:
@@ -893,20 +934,18 @@ STAT_5: ADD A,STARS_POSITION
 
 LMP_T:  LD A,(ACTIVE_LOCATION)
         OR A
-        JP NZ,DRAW_LR
+        ;JP NZ,DRAW_LR
         LD A,1          ;WITHOT CHARACTERS
         CALL CREATE_SCENE
 
-        LD B,19
+        ;JP DRAW_LR
+
+        LD B,8
         LD DE,#1705
 L_S1:   PUSH BC
-        LD HL,LAMP_SHAD_4
+        LD HL,LAMP_SHAD_L
         LD A,E
-        CP #17
-        JR NZ,L_S3
-        LD BC,#0201
-        JR L_S4
-L_S3:   LD BC,#0202
+        LD BC,#0202
 L_S4:   LD A,SPRITE_AND
         CALL DRAW_SPRITE
         POP BC
@@ -914,12 +953,23 @@ L_S4:   LD A,SPRITE_AND
         INC E
         DJNZ L_S1
 
-        LD HL,LAMP_SHAD_3
+        LD DE,#1715
+        LD BC,#0303
+        LD HL,LAMP_SHAD_R
+        LD A,SPRITE_AND
+        CALL DRAW_SPRITE
+
+        LD HL,LAMP_SHAD_B
         LD DE,#1905     ;OTHER DARK PART
-        LD B,7
-        LD C,19
+        LD C,#13
+        LD B,#07
 L_S6:   PUSH BC
         PUSH DE
+        LD A,C
+        CP #03
+        JR NC,L_S5      ;IF ROAD
+        INC D
+        DEC B
 L_S5:   PUSH BC
         LD BC,#0101
         LD A,SPRITE_MOV
@@ -932,56 +982,6 @@ L_S5:   PUSH BC
         POP BC
         DEC C
         JR NZ,L_S6
-
-        JP DRAW_LR      ;OLD PART
-
-        LD DE,#170E     ;CORNER OLD
-        LD B,#01
-        LD HL,LAMP_SHAD_0
-        LD A,SPRITE_AND
-LMP_S1: PUSH BC
-        LD BC,#0101
-        CALL DRAW_SPRITE
-        INC D
-        POP BC
-        DJNZ LMP_S1
-        LD DE,#180E     ;VERTICAL RIGHT
-        LD HL,LAMP_SHAD_1
-        LD B,8
-        LD A,SPRITE_AND
-LMP_S2: PUSH BC
-        LD BC,#0101
-        CALL DRAW_SPRITE
-        INC D
-        POP BC
-        DJNZ LMP_S2
-        LD DE,#170F     ;HORIZONTAL DOWN
-        LD HL,LAMP_SHAD_2
-        LD B,9
-        LD A,SPRITE_AND
-LMP_S3: PUSH BC
-        LD BC,#0101
-        CALL DRAW_SPRITE
-        INC E
-        POP BC
-        DJNZ LMP_S3
-        LD HL,LAMP_SHAD_3
-        LD DE,#180F     ;OTHER DARK PART
-        LD BC,#0809
-LMP_S5: PUSH BC
-        PUSH DE
-LMP_S4: PUSH BC
-        LD BC,#0101
-        LD A,SPRITE_MOV
-        CALL DRAW_SPRITE
-        POP BC
-        INC D
-        DJNZ LMP_S4
-        POP DE
-        INC E
-        POP BC
-        DEC C
-        JR NZ,LMP_S5
 
 DRAW_LR:POP HL
         POP DE
