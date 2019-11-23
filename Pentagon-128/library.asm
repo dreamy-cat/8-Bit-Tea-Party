@@ -41,6 +41,115 @@ CLR_2:  LD A,E
         POP AF
         RET 
 
+;DRAW ANIMATION FUNCTION IN BYTES.
+;USING "DRAW_SPRITE" FUNCTION AND STRUC.
+;IX - ADDRESS OF CHARACTER DATA STRUCTURE.
+;RESULT ON SCRREN.
+;DRAW ALSO STATIC OBJECT, NO RANGE CHECKS.
+;KNOWN BUG: USING STS DEBUGGER IN FUSE,
+;SOMETIMES RANDOM DATA SAVED TO MEMORY.
+
+DRAW_ANIMATION:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+        PUSH IX
+        PUSH IY
+        LD B,(IX+4)
+        PUSH IX
+        POP HL
+        LD DE,#0006     ;TABLE OF PARTS
+        ADD HL,DE
+ANIM_1: PUSH BC
+        RES 0,B         ;RESET DELAY FLAG
+        LD E,(HL)
+        INC HL
+        LD D,(HL)
+        INC HL          ;NEXT PART IN HL
+        PUSH HL         ;SAVE PART
+        EX DE,HL        ;DE - ADDR PART
+        PUSH HL
+        POP IY          ;IY - PART STRUC
+        BIT 6,(IX+5)    ;IF ALL REDRAW
+        JR Z,ANIM_8
+        SET 6,(IY+7)    ;SET REDRAW FLAG
+ANIM_8: LD C,(IY+7)     ;FLAGS IN REG C
+        BIT 5,C         ;EXTRA BIT
+        JR NZ,ANIM_2    ;STATIC PART
+        DEC (IY+5)      ;CURRENT DELAY
+        JR NZ,ANIM_2
+        SET 6,C         ;RE-DRAW PART
+        SET 0,B         ;RESET DELAY IN B
+        INC (IY+4)      ;NEXT FRAME
+        LD A,(IY+4)
+        CP (IY+6)
+        JR NZ,ANIM_2
+        LD (IY+4),0     ;TO 0-FRAME
+ANIM_2: BIT 6,C         ;DRAW OR NOT PART
+        JR NZ,ANIM_5
+        BIT 7,C         ;SINGLE OR EVERY
+        JR Z,ANIM_4     ;FRAME TO DRAW
+ANIM_5: RES 6,(IY+7)    ;NOT DRAW NEXT FR
+        LD A,(IY+4)     ;DRAW PART
+        PUSH IY
+        POP HL          ;ADDR OF 0-FRAME
+        RLCA            ;ADD TO INDEX*8
+        RLCA            ;PERFORMANCE SLA
+        RLCA 
+        ADD A,#08       ;OFFSET OF TABLE
+        LD E,A
+        LD D,#00
+        ADD HL,DE       ;START FRAME
+        LD D,(IX+0)     ;SAVE BASE POS
+        LD E,(IX+1)
+        PUSH IX         ;SAVE IX
+        PUSH HL         ;HL TO IX
+        POP IX          ;IX - FRAME TABLE
+        BIT 0,B         ;IF NEED TO SET
+        JR Z,ANIM_3
+        LD A,(IX+6)     ;OFFSET OF DELAY
+        LD (IY+5),A     ;SET NEW DELAY
+ANIM_3: LD A,D
+        ADD A,(IY+0)    ;POSITION WITHOUT
+        LD D,A          ;CHECK OF RANGES
+        LD A,E
+        ADD A,(IY+1)
+        LD E,A          ;DE - FRAME POS
+        LD A,(IY+7)     ;A - FLAGS
+        LD B,(IY+2)     ;BC - SIZES
+        LD C,(IY+3)
+        BIT 4,A         ;NEED SAVE BG
+        JR Z,ANIM_6
+        OR SPRITE_SAV
+        LD L,(IX+4)     ;HL - BACKGROUND
+        LD H,(IX+5)
+        PUSH HL
+        POP IY          ;OVERWRITE STR IY
+ANIM_6: LD L,(IX+0)     ;HL - FRAME ADDR
+        LD H,(IX+1)
+        BIT 3,A
+        JR Z,ANIM_7     ;WITHOUT MASK
+        PUSH HL
+        LD L,(IX+2)
+        LD H,(IX+3)
+        PUSH HL
+        POP IX          ;IX - MASK
+        POP HL
+ANIM_7: CALL DRAW_SPRITE
+        POP IX          ;RESTORE STRUC
+ANIM_4: POP HL
+        POP BC
+        DEC B
+        JP NZ,ANIM_1
+AN_RET: POP IY
+        POP IX
+        POP HL
+        POP DE
+        POP BC
+        POP AF
+        RET 
+
 ;DRAW A SPRITE ON SCREEN.
 ;A - TYPE OF DRAW ON SCREEN MEMORY, BIT N.
 ;IF BITS 0..4 ARE NOT SET, THEN CHECK
@@ -144,13 +253,16 @@ SPR_AND:BIT 1,A         ;AND PART
         AND (HL)
         JR SPR_ST
 SPR_OR: BIT 2,A         ;OR PART
-        JR Z,SPR_ST     ;SAVE ZERO TO SPR
+        JR Z,SPR_NXT    ;NOTHING TO DO
         EX AF,AF'       ;18 TACTS
         LD A,(DE)
         OR (HL)
+        JR SPR_ST
+SPR_NXT:EX AF,AF'       ;NO DRAW NEXT
+        JR SPR_NST
 SPR_ST: LD (DE),A       ;STORE BYTE
         INC HL
-        INC DE
+SPR_NST:INC DE          ;NEXT BYTE
         DJNZ SPR_1
         POP DE
         INC D
@@ -268,3 +380,4 @@ PIX_3:  LD (HL),A
 PIX_E:  POP BC
         POP AF
         RET 
+  
