@@ -5,7 +5,7 @@
 
 lighticn.bmp - иконка для инвентаря
 
-light.bmp - изображение лампы
+light.bmp - спрайт
 ---
 ligm2msk.bmp - маска на map02.txt
 ligm2.bmp - спрайт на map02.txt
