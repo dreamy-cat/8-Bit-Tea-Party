@@ -1714,38 +1714,41 @@ def part_10_practice():
 	pass
 
 def add_colors(colors, queue):
+	import time
 	for color in colors:
 		print("Adding color %s to queue." % color)
 		queue.put(color)
+		time.sleep(1)
 	pass
 
 def set_color(queue):
+	import time
 	while True:
 		color = queue.get()
 		print("Setting color %s from queue." % color)
 		queue.task_done()
 		sys.stdout.flush()
+		time.sleep(2)
 	pass
 
 def send_colors(colors, queue):
 	import time
 	for color in colors:
 		print("Sending color", color, "to queue.")
-		time.sleep(1)
+		time.sleep(3)
 		queue.put(color)
 	pass
 
 def receive_colors(queue):
 	import time
 	while True:
-		time.sleep(2)
-		color = queue.get()
-		print("Receiving color", color, "from queue.")
-		queue.task_done()
+		color = queue.get();
+		print("Recieving color", color, "from queue.")
+		time.sleep(5)
 	pass
 
-def part_11_1_theory():
-	print("Stream 11. Concurrent execution and network.\n")
+def part_11_1a_theory():
+	print("Stream 11_1. Concurenncy and threads.")
 	from multiprocessing import Process, JoinableQueue
 	if __name__ == '__main__':
 		colors_queue = JoinableQueue()
@@ -1754,88 +1757,242 @@ def part_11_1_theory():
 		set_process.start()
 		add_colors(["red", "green", "blue"], colors_queue)
 		colors_queue.join()
-	print("Using threads with Shapes.\n");
-	# На основе потоков аналогичный пример.
+	pass
+
+def part_11_1b_theory():
+	print("Stream 11_1. Using threads for colors.")
 	import threading, queue, time
-	time.sleep(10)
 	colors_queue = queue.Queue()
-	for n in range(3):
+	time.sleep(1)
+	for n in range(1):
 		send_thr = threading.Thread(target=receive_colors, args=(colors_queue,))
+		send_thr.daemon = True
 		send_thr.start()
 	send_colors(["red", "green", "blue"], colors_queue)
 	colors_queue.join()
 	pass
-	
+
+def part_11_1c_theory():
+	print("Get hosts by name in threads, gevent library.")
+	import gevent
+	from gevent import socket
+	hosts = ["github.com", "google.com", "8bittea.party"]
+	jobs = [gevent.spawn(gevent.socket.gethostbyname, host) for host in hosts]
+	gevent.joinall(jobs, timeout=5)
+	for job in jobs:
+		print("Value for job", job, job.value)
+	pass
+
+def part_11_1d_theory():
+	print("Simple Twisted echo server.")
+	from twisted.internet import protocol, reactor, endpoints
+	class Echo(protocol.Protocol):
+		def dataReceived(self, data):
+			self.transport.write(data)
+	class EchoFactory(protocol.Factory):
+	    def buildProtocol(self, addr):
+	        return Echo()
+	endpoints.serverFromString(reactor, "tcp:64000").listen(EchoFactory())
+	reactor.run()	# Result: heelloo  WWoorrlldd!!
+	pass
+
+def receive_colors_redis():
+	print("Starting thread with receiving colors.")
+	import redis, time
+	connect = redis.Redis()
+	while True:
+		message = connect.blpop("COLORS")
+		if not message:
+			break
+		color = message[1].decode("UTF-8")
+		now = time.strftime("%H:%M:%S", time.localtime())
+		if color == "QUIT":
+			print(now, "receiving message 'QUIT', stop thread.")
+			break;
+		print(now, "receiving color", color, "from server.")
+		time.sleep(5)
+	pass
+
+def part_11_1e_theory():
+	print("Using Redis server for setting colors with threads.\n")
+	import redis, threading, queue, time
+	connect = redis.Redis()
+	time.sleep(1)
+	send_thread = threading.Thread(target=receive_colors_redis)
+	send_thread.daemon = True
+	send_thread.start()
+	colors = ["red", "green", "blue"]
+	for color in colors:
+		message = color.encode("UTF-8")
+		connect.rpush("COLORS", message)
+		now = time.strftime("%H:%M:%S", time.localtime())
+		print("%s: color %s added to Redis server." % (now, color))
+		sys.stdout.flush()
+		time.sleep(3)
+	connect.rpush("COLORS", "QUIT")
+	print("All colors added on server.")
+	pass
+
+def publisher_zero_mq():
+	import zmq, time, random
+	host = "127.0.0.1"; port = 6400
+	context = zmq.Context()
+	publisher = context.socket(zmq.PUB)
+	publisher.bind("tcp://%s:%s" % (host, port))
+	colors = ["red", "green", "blue"]
+	shapes = ["circle", "square", "triangle"]
+	time.sleep(1)
+	for message in range(3):
+		color = random.choice(colors)
+		shape = random.choice(shapes)
+		now = time.strftime("%H:%M:%S", time.localtime())
+		print("%s: sending '%s' with '%s' color." % (now, shape, color))
+		color_data = color.encode("UTF-8")
+		shape_data = shape.encode("UTF-8")
+		publisher.send_multipart([shape_data, color_data])
+		time.sleep(2)
+	pass
+
+def part_11_2a_theory():
+	print("Publisher-subscriber model using ZeroMQ.")
+	import zmq, threading, time
+	server_thread = threading.Thread(target=publisher_zero_mq)
+	server_thread.daemon = True
+	server_thread.start()
+	time.sleep(1)
+	host = "127.0.0.1"; 
+	port = 6400
+	context = zmq.Context()
+	subscriber = context.socket(zmq.SUB)
+	subscriber.connect('tcp://%s:%s' % (host, port))
+	colors = ["red", "green"]
+	for color in colors:
+		subscriber.setsockopt(zmq.SUBSCRIBE, color.encode("UTF-8"))
+	while True:
+		shape_data, color_data = subscriber.recv_multipart()
+		color = color_data.decode("UTF-8")
+		shape = shape_data.decode("UTF-8")
+		now = time.strftime("%H:%M:%S", time.localtime())
+		print("%s: receiving '%s' with '%s' color." % (now, shape, color))
+		time.sleep(3)
+	pass
+
+def udp_server():
+	print("Starting UDP server at port 6700.")
+	import socket, time
+	server_address = ("localhost", 6700)
+	max_size = 256
+	server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	server.bind(server_address)
+	data, client = server.recvfrom(max_size)
+	now = time.strftime("%H:%M:%S", time.localtime())
+	print("%s: server receiving from '%s', data '%s'." % (now, client, data))
+	time.sleep(1)
+	server.sendto(now.encode("UTF-8"), client)
+	print("%s: server sent time to client '%s'." % (now, now))
+	server.close()
+	pass
+
+def tcp_server():
+	print("Starting TCP server at port 6800.")
+	import socket, time
+	server_address = ("localhost", 6800)
+	max_size = 256
+	server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server.bind(server_address)
+	server.listen(5)
+	client, addr = server.accept()
+	data = client.recv(max_size)
+	time.sleep(1)
+	now = time.strftime("%H:%M:%S", time.localtime())
+	print("%s: server receiving from '%s', data '%s'." % (now, client, data))
+	client.sendall(now.encode("UTF-8"))
+	print("%s: server sent time to client '%s'." % (now, now))
+	client.close()
+	server.close()
+	pass
+
+def part_11_2b_theory():
+	print("Running simple UDP and TCP servers and clients.\n")
+	import socket, threading, time
+	udp_server_thread = threading.Thread(target=udp_server)
+	udp_server_thread.daemon = True
+	udp_server_thread.start()
+	time.sleep(1)
+	server_address = ("localhost", 6700)
+	max_size = 256
+	print("Starting the UDP client at localhost.")
+	now = time.strftime("%H:%M:%S", time.localtime())
+	udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	print("%s: client sending time '%s' to server." % (now, now))
+	time.sleep(1)
+	udp_client.sendto(now.encode("UTF-8"), server_address)
+	data, server = udp_client.recvfrom(max_size)
+	time.sleep(1)
+	print("%s: client receiving from server '%s', data '%s'." % (now, server, data))
+	udp_client.close()
+	print()
+	tcp_server_thread = threading.Thread(target=tcp_server)
+	tcp_server_thread.daemon = True
+	tcp_server_thread.start()
+	time.sleep(2)
+	print("Starting TCP client at localhost.")
+	server_address = ("localhost", 6800)
+	tcp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	tcp_client.connect(server_address)
+	now = time.strftime("%H:%M:%S", time.localtime())
+	tcp_client.sendall(now.encode("UTF-8"))
+	data = tcp_client.recv(max_size)
+	print("%s: client receiving data '%s'." % (now, data))
+	time.sleep(3)
+	tcp_client.close()
+	pass
+
+def zero_server():
+	import zmq, time
+	host = "127.0.0.1"; port = 6900
+	context = zmq.Context()
+	server = context.socket(zmq.REP)
+	server.bind("tcp://%s:%s" % (host, port))
+	while True:
+		request_data = server.recv()
+		request_text = request_data.decode("UTF-8")
+		now = time.strftime("%H:%M:%S", time.localtime())
+		print("%s: server receive client data '%s'." % (now, request_text))
+		time.sleep(1)
+		now = time.strftime("%H:%M:%S", time.localtime())
+		reply_data = bytes(now, "UTF-8")
+		server.send(reply_data)
+	pass
+
+def part_11_2c_theory():
+	print("Running simple ZeroMQ server and clients, REQ-REP pattenr.\n")
+	import zmq, threading, time
+	zero_server_thread = threading.Thread(target=zero_server)
+	zero_server_thread.daemon = True
+	zero_server_thread.start()
+	time.sleep(2)
+	context = zmq.Context()
+	zero_client = context.socket(zmq.REQ)
+	server = "localhost"; port = 6900
+	max_size = 256
+	zero_client.connect("tcp://%s:%s" % (server, port))
+	for i in range(3):
+		now = time.strftime("%H:%M:%S", time.localtime())
+		request_data = now.encode("UTF-8")
+		print("%s: client '%s' sending to server data '%s'." % (now, zero_client, request_data))
+		zero_client.send(request_data)
+		time.sleep(2)
+		reply_data = zero_client.recv()
+		reply = reply_data.decode("UTF-8")
+		now = time.strftime("%H:%M:%S", time.localtime())
+		print("%s: client receive server reply '%s'." % (now, reply))
+	pass
+
 #MAIN
 
-unpooled = ["1","2","3","4","5","6","7","8","9"]
-count = len(unpooled)
-all_lists = []
+part_11_2c_theory()
 
-num = 3
-k = 0
-temp_list = []
-
-while (k < count):
-	temp_list.append(unpooled[k])
-	k += 1;
-	if (k % num == 0 or k == count):
-		all_lists.append(temp_list[::])
-		temp_list.clear()
-
-print(all_lists)
-
-print("Clear all_lists.")
-all_lists.clear()
-
-k = 0
-while (k < count):
-	if (k + num < count):
-		all_lists.append(unpooled[k : k + num])
-	else:
-		all_lists.append(unpooled[k : count])
-	k += num;
-print(all_lists)
-
-all_lists.clear()
-
-for k in range(0, count, num):
-	if (k + num < count):
-		all_lists.append(unpooled[k : k + num ])
-	else:
-		all_lists.append(unpooled[k : count])
-print(all_lists)
-
-
-'''
-div = count // num
-mod = count % num
-
-if mod == 0:
-	step = div
-else:
-	step = div+1
-
-print(div, mod, step)
-
-#создание списков
-for i in range(0, step):
-	for j in range(k, k + step):
-		temp_list.append(unpooled[j])
-	k = k + step
-	print(temp_list)
-	temp_list.clear()
-
-
-# на потом
-if mod >= div:
-	for i in range(div+1):
-		pool_dict = {i : "temp_list"}
-		i += 1
-		print(pool_dict)
-'''
-
-#part_11_1_theory()
 
 
 
