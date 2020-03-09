@@ -3,26 +3,26 @@
 ;MAIN FILE FOR ASSEMBLER CODE ON STREAMS.
 ;WE USING PENTAGON-128K MODEL EMULATION.
 ;
-;CPU:   Zilog Z80, 3.5HhZ, 1976.
-;RAM:   48Kb, 128Kb With more memory.
-;ROM:   16Kb, base and more with 128Kb.
-;SCREEN:256x192 monohrome pixels,
-;       32x24 color attributes.
+;CPU:   Zilog Z80, 3.5MhZ, 1976.
+;RAM:   48Kb BASE, 128Kb WITH MORE MEMORY.
+;ROM:   16Kb base and more with 128Kb.
+;SCREEN:256x192 PIXELS IN MONOCHROME.
+;       32x24 COLOR ATTRIBUTES.
 ;SOUND: 1-Bit beeper,
-;       AY-3-8910 or YM2149F chip.
-;CTRL:  Keybord and kempston joystick.
-
-;ADRESS WIDTH:
+;       AY-3-8910 or YM2149F CHIP.
+;CTRL:  Keyboard and Kempston joystick.
+;
+;ADDRESS WIDTH:
 ;       16 BITS OR 0..64Kb OR #0000..#FFFF
 ;REGISTERS: 8-BIT PART OR 16-BIT AS PAIR.
 ;       AF - ACCUMULATOR AND FLAGS
-;       BC - DATA/ADDR, FOR LOOPS
-;       DE - DATA/ADDR, OPERAND HL
-;       HL - 16-BIT ACCUMULATOR
+;       BC - DATA/ADDR, FOR LOOPS.
+;       DE - DATA/ADDR, OPERAND WITH HL.
+;       HL - 16-BIT ACCUMULATOR.
+;       AF',BC',DE',HL' - ALTERNATE.
 ;       I - INTERRUPT, R(DRAM).
 ;REGISTERS: 16-BIT ONLY.
-;       IX - INDEX REGISTER.
-;       IY - INDEX REGISTER.
+;       IX,IY - 16-BIT INDEX REGISTERS.
 ;       SP - STACK POINTER.
 ;       PC - PROGRAM COUNTER.
 ;INTERRUPTS:
@@ -30,10 +30,9 @@
 ;       IM0 - MASKABLE, HARDWARE.
 ;       IM1 - MASKABLE, STANDARD.
 ;       IM2 - MASKABLE, USER DEFINED.
-;IM2 function [I] * 256 + [D]=255.
 
-OPEN_CHANNEL    EQU #1601
-PRINT_STRING    EQU #203C
+;GLOBAL NAMES AND CONSTANTS.
+
 SCREEN_PIXELS   EQU #4000       ;16384
 SCREEN_ATTRIB   EQU #5800       ;22528
 SCREEN_P_SIZE   EQU #1800       ;6Kb
@@ -56,6 +55,17 @@ NUM_SYS_BASE    EQU #0A         ;DEC(10)
 IM2_I_REG       EQU #5B
 IM2_B_DATA      EQU #FF
 
+KEMPSTON_PORT   EQU #1F         ;PORT 31
+KEMPSTON_MASK   EQU %00011111   ;5 BITS
+KEMPSTON_RIGHT  EQU #00         ;N OF BIT
+KEMPSTON_LEFT   EQU #01
+KEMPSTON_DOWN   EQU #02
+KEMPSTON_UP     EQU #03
+KEMPSTON_FIRE   EQU #04
+
+PRINT_STRING    EQU #203C
+OPEN_CHANNEL    EQU #1601
+
         ORG #6000       ;START ADDRESS
         LD (ALASM_STACK),SP
         LD SP,(PROGRAM_STACK)
@@ -63,173 +73,50 @@ IM2_B_DATA      EQU #FF
         LD DE,IM2
         CALL IM2_SETUP
 
-;Stream 12. Draw basic sprite function.
-
-
-;TESTING BOB AS SPRITE IN OUR GAME.
-
-        LD D,%01000111
-        LD E,%00000000
-        CALL CLEAR_SCR
-        LD HL,BG_GAME
-        LD DE,#0400     ;SIZE BACKGROUND
-        LD BC,#1020
-        LD IX,SPRITE_MASK
-        CALL DRAW_SPRITE
-
-        LD BC,#0010
-T_AN_0: PUSH BC
-        LD A,#10
-        CALL IM2_DELAY
-        LD HL,BOB_DATA_1
-        LD IX,BOB_MASK
-        LD BC,#0404
-        LD DE,#1312
-        CALL DRAW_SPRITE
-        LD A,#10
-        CALL IM2_DELAY
-        CALL DRAW_SPRITE
-        LD HL,BOB_DATA_2
-        CALL DRAW_SPRITE
+        LD A,"а"
+        LD D,#00
+        LD E,%01100000
+        LD HL,PRESS_START_2P
+        LD BC,#0608
+FNT_2:  PUSH BC
+FNT_1:  PUSH BC
+        LD BC,SCREEN_PIXELS
+        CALL PRINT_CHAR_AT
         POP BC
-        DEC BC
-        LD A,B
-        OR C
-        JR NZ,T_AN_0
-
-        JP TO_RET
-
-;TESTING PERFORMANCE ON SIZES.
-
-        LD HL,#0400
-T_SPR_2:HALT 
-        PUSH HL
-        LD HL,SPRITE_DATA
-        LD DE,#080C
-        LD BC,#0208
-        LD IX,SPRITE_MASK
-        CALL DRAW_SPRITE
-        LD A,#04
-        OUT (#FE),A
-        POP HL
-        DEC HL
-        LD A,H
-        OR L
-        JR NZ,T_SPR_2
-
-        JP TO_RET
-
-;SIMPLE SPRITE TEST 1x1, ALL COORDINATES.
-
-        LD DE,#0000
-T_SPR_1:PUSH DE
-        LD BC,#0101
-        LD HL,SPRITE_DATA
-        LD IX,SPRITE_MASK
-T_SPR_0:;HALT
-        ;HALT
-        CALL DRAW_SPRITE
+        INC A           ;LAST CHAR
+        JR Z,FNT_0
         INC E
-        LD A,E
-        CP SCR_ATTR_SIZE_X
-        JR NZ,T_SPR_0
-        POP DE
+        DEC C
+        JR NZ,FNT_1
+        POP BC
+        LD E,%01100000
         INC D
-        LD A,D
-        CP SCR_ATTR_SIZE_Y
-        JR NZ,T_SPR_1
-
-        ;CALL SCROLL_TEXT_WIN
-        ;CALL PRINT_TEXT_SCALE
+        DJNZ FNT_2
+FNT_0:
+        ;CALL PRINT_AND_SCROLL
+        ;CALL PRINT_STR_SCALE
         ;CALL PRINT_CHARS_SCR
         ;CALL SCROLL_TEXT_ATTR
-        ;CALL TIMER_ATTR_FONTS
-        ;CALL TEXT_DYNAMIC_ATTR
-        ;CALL CLEAR_SCR_FUNCS
+        ;CALL TIMER_ATTR_FONT
+        ;CALL TEXT_DYNAMIC_COLORS
+        ;CALL FILL_SCR_ATTRIB
         ;CALL IM2_PERFORMANCE
+;       ;CALL DYNAMIC_COLOR_TABLE
+
 TO_RET: POP DE
         LD SP,(ALASM_STACK)
         RET 
 
-;Global variables and data.
+;GLOBAL VARIABLES AND DATA.
 
-STR_HELLO       DEFB "Hello World!",0
 PROGRAM_STACK   DEFW #5F00
 ALASM_STACK     DEFW #0000
+STR_HELLO       DEFB "Hello World!",0
+KEMPSTON        DB #00
 
-SPRITE_DATA:    DUP #100
-                DEFB %01010101
-                DEFB %10101010
-                EDUP 
+;Stream 11. Scroll text on screen, music.
 
-SPRITE_MASK:    DUP #100
-                DEFB %00000000
-                EDUP 
-
-;Draw fast sprite with mask on std screen.
-;A      [BITS:]
-;0..7   reserved;
-;BC     sprite size in attributes Y and X;
-;DE     sprite position on screen Y and X;
-;HL     pixel array address;
-;IX     mask address.
-
-DRAW_SPRITE:
-        PUSH AF         ;SAVE REGISTERS
-        PUSH BC
-        PUSH DE
-        PUSH HL
-        PUSH IX
-
-D_SPR_3:PUSH BC         ;OFFSET ADDRESS
-        PUSH DE
-        PUSH HL
-        LD A,D          ;USING TABLE
-        AND %00011000
-        OR %01000000    ;ONLY ON SCREEN 0
-        LD H,A
-        LD A,D
-        AND %00000111   ;1/8 PART
-        RRCA 
-        RRCA 
-        RRCA 
-        ADD A,E         ;PLUS X COORDINATE
-        LD L,A
-        EX DE,HL
-        POP HL
-
-        LD B,#08        ;LINES IN ATTRIB
-D_SPR_2:PUSH BC         ;LINE
-        PUSH DE
-D_SPR_1:LD A,(DE)       ;SCREEN BACKGROUND
-        AND (IX+0)      ;USING MASK
-        OR (HL)         ;SPRITE DATA
-        LD (DE),A       ;DRAW ON SCREEN
-        INC HL          ;7+19+7+7+6+6+10
-        INC DE          ;+15[JR] = 75
-        INC IX          ;
-        DEC C
-        JR NZ,D_SPR_1
-        POP DE
-        INC D           ;NEXT LINE
-        POP BC
-        DJNZ D_SPR_2
-
-        POP DE          ;COORDINATES
-        INC D           ;NEXT 1/8 PART
-        POP BC          ;SIZES
-        DJNZ D_SPR_3
-
-D_SPR_0:POP IX          ;RESTORE REGISTERS
-        POP HL
-        POP DE
-        POP BC
-        POP AF
-        RET 
-
-;Stream 11. Print string, vertical scroll.
-
-SCROLL_TEXT_WIN:
+PRINT_AND_SCROLL:
         PUSH AF
         PUSH BC
         PUSH DE
@@ -237,18 +124,22 @@ SCROLL_TEXT_WIN:
         PUSH IX
         PUSH IY
 
-;SCROLL EFFECT FOR TEXT.
+        ;CALL SCROLL_SCREEN
+        ;CALL PRINT_CHARS_SCR
+
+;MAIN STREAM SHOW EFFECT OF TEXT MOVE UP.
 
         LD D,%01000111
         LD E,#00
         CALL CLEAR_SCR
-        LD A,#00
-        OUT (#FE),A
 
-        LD C,#0C        ;ANIMATION FRAMES
-        LD IX,SCROLL_TXT
-M_TXT_8:PUSH BC
+;ROLL MID SCREEN.
+
+        LD C,#0C        ;ANIMATION
+        LD IX,STRING_TXT
+M_TXT_9:PUSH BC
         PUSH IX
+;PRINT STRING TO BUFFER, DRAW OUR ATTR.
 
         LD IX,TXT_ATTR_1
         LD B,#08
@@ -259,100 +150,104 @@ M_TXT_1:PUSH BC
         AND %00000111
         RLCA 
         RLCA 
-        RLCA            ;TO PAPER ATTR
-        OR %01000000    ;BRIGHT BIT
+        RLCA 
+        OR %01000000
         LD B,A
         LD C,%01000000
         LD A,(IX+0)
         SCF 
         CALL PRINT_A_CHAR
         LD A,E
-        ADD A,FONT_SIZE ;PLUS 8
-        CP SCR_ATTR_SIZE_X
+        ADD A,FONT_SIZE
+        CP #20          ;IN LINE
         JR NZ,M_TXT_2
         LD A,#00
         LD D,#10
-M_TXT_2:LD E,A          ;NEXT POSITION
+M_TXT_2:LD E,A
         INC IX
         POP BC
         DJNZ M_TXT_1
-        POP IX          ;SCROLL TEXT
+
+        POP IX
 
         LD IY,STRING_BUFFER
-        ;LD IY,SCREEN_PIXELS
         LD HL,FONT_ENG
         LD D,#00
         LD E,%00100000  ;SCALE 2X
         LD BC,#0110
         CALL PRINT_STRING_WIN
-        LD B,#10        ;LINE = 16PIXELS
-
+        ;LD IY,STRING_BUFFER
+        LD B,#10        ;ONE LINE
 M_TXT_7:PUSH BC
-        LD HL,#4800     ;SECOND PART SCR
+        LD HL,#4800     ;MID SCREEN
         LD DE,#4800
         LD A,#08        ;8 PARTS
 M_TXT_6:PUSH AF
         PUSH HL
         LD A,#07        ;7 LINES
-M_TXT_3:INC H           ;NEXT LINE
+        ;OUT (#FE),A
+M_TXT_3:INC H
         PUSH DE
-        PUSH HL
-        LD BC,#0020     ;32 BYTES IN LINE
+        PUSH HL         ;MOVE LINE
+        LD BC,#0020
         LDIR 
         POP HL
         POP DE
         INC D
-        DEC A           ;NEXT 7TH LINE
-        JR NZ,M_TXT_3
+        DEC A
+        JR NZ,M_TXT_3   ;NEXT 7TH LINE
         POP HL
         POP AF
-        BIT 0,A         ;NEXT FRAM SCREEN
-        JR Z,M_TXT_9
-        HALT            ;PAUSE EVER 16PX
-M_TXT_9:DEC A           ;LAST PART LINE
+        BIT 0,A         ;NEXT FRAME
+        JR Z,M_TXT_8
+        HALT            ;PAUSE EVERY 16
+M_TXT_8:DEC A           ;LAST PART LINE
         JR NZ,M_TXT_4
-        POP BC
+        POP BC          ;TAKE B LINE FONT
         PUSH BC
         LD A,B
-        CP #08          ;LOWER PART
+        CP #08
         JR Z,M_TXT_A
-        PUSH IY
-        POP HL          ;COPY FROM BUFFER
+        PUSH IY         ;FROM BUFFER
+        POP HL
         LD BC,#0100     ;NEXT LINE
         ADD IY,BC
-        XOR A
+        XOR A           ;RESTORE ZERO
         JR M_TXT_5
 M_TXT_A:LD IY,STRING_BUFFER
-        LD BC,#0020     ;NEXT LOWER PART
+        LD BC,#0020
         ADD IY,BC
         PUSH IY
-        POP HL          ;HL = IY
-        XOR A
+        POP HL
+        XOR A           ;RESTORE ZERO
         JR M_TXT_5
 M_TXT_4:LD BC,#0020
         ADD HL,BC
-M_TXT_5:PUSH HL         ;LAST LINE
+M_TXT_5:PUSH HL
         LD BC,#0020
-        LDIR 
+        LDIR            ;LAST LINE
         POP HL
-        PUSH HL         ;DE = HL
+        PUSH HL
         POP DE
         OR A            ;NEXT PART
         JR NZ,M_TXT_6
-
         POP BC
-        DJNZ M_TXT_7    ;NEXT 16TH LINE
+        ;LD A,#04
+        ;OUT (#FE),A
+        DJNZ M_TXT_7
         LD BC,#0010
         ADD IX,BC
-        POP BC          ;NEXT FRAME ANIM
+        POP BC          ;NEXT FRAME
         DEC C
-        JP NZ,M_TXT_8
+        JP NZ,M_TXT_9
 
-        JP S_WIN_R
+        JP PR_SC_0
 
-;TESTING ALL WINDOW PRINT SCALES.
+;TESTING TO SHOW ALL CHARS ON SCREEN.
 
-        LD IX,SCROLL_TXT
+        ;JP TST_S
+
+        LD IX,STRING_TXT
         LD IY,SCREEN_PIXELS
         LD B,#04
         LD C,%00000000
@@ -364,41 +259,70 @@ P_WIN_1:PUSH BC
         LD A,C          ;SCALE
         RRCA 
         RRCA 
-        RRCA            ;TO BITS 5,6
-        OR E            ;ADD COORDINATE
-        LD E,A
-        PUSH HL         ;BC = SIZES
-        POP BC          ;BC = HL
+        RRCA 
+        OR E
+        LD E,A          ;ADD SCALE
+        PUSH HL
+        POP BC
         LD HL,FONT_ENG
         CALL PRINT_STRING_WIN
-        POP HL          ;HL = SIZES
+        POP HL
         SRL H           ;SIZES TO SCALE
         SRL L
         POP BC
         LD A,#32
         CALL IM2_DELAY
-        INC C
+        INC C           ;NEXT SCREEN
         DJNZ P_WIN_1
 
-        JP S_WIN_R
+        JP PR_SC_0
 
-        LD D,#02
-        LD E,%01100010
-        LD BC,#0102
+;TESTING AFTER SIMPLE FUNCTION.
+
+TST_S:  LD D,#00
+        LD E,%00000000  ;10
+        LD BC,#1020
         LD HL,FONT_ENG
         LD IX,STRING_TXT
-        LD IY,SCREEN_PIXELS
+        ;LD IY,SCREEN_PIXELS
+        LD IY,STRING_BUFFER
         CALL PRINT_STRING_WIN
+        JP TO_RET
 
-        JP S_WIN_R
+        LD A," "
+        LD D,#00
+        LD E,%00000000
+        LD BC,#0C10
+        LD HL,FONT_ENG
 
-;Testing function of address offsest from
+TST_3:  PUSH BC
+        PUSH DE
+TST_1:  PUSH BC
+        LD BC,SCREEN_PIXELS
+        CALL PRINT_CHAR_AT
+        POP BC
+        INC A
+        CP #60
+        JR NZ,TST_2
+        LD A," "
+TST_2:  INC E
+        DEC C
+        JR NZ,TST_1
+        POP DE
+        INC D
+        POP BC
+        DJNZ TST_3
+
+        JP PR_SC_0
+
+;Testing function of address offset from
 ;coordinates by D.Krapivin.
 
-        LD DE,#0F00
+        LD DE,#0F00     ;TEST INCORRECT
         CALL OFFSET_ATTR
+        JP TO_RET
 
-        LD DE,#0000
+        LD DE,#0000     ;NORMAL TEST
 OFF_A_1:CALL OFFSET_ATTR
         INC E
         LD A,E
@@ -410,7 +334,7 @@ OFF_A_1:CALL OFFSET_ATTR
         CP SCR_ATTR_SIZE_Y
         JR NZ,OFF_A_1
 
-S_WIN_R:POP IY
+PR_SC_0:POP IY
         POP IX
         POP HL
         POP DE
@@ -420,7 +344,7 @@ S_WIN_R:POP IY
 
 TXT_ATTR_1:     DEFB "8BITTEA!"
 
-SCROLL_TXT:
+STRING_TXT:
         DEFB "   WELCOME TO   "
         DEFB "8-BIT TEA PARTY!"
         DEFB "                "
@@ -436,15 +360,112 @@ SCROLL_TXT:
 
 STRING_BUFFER:  DUP #0800       ;2Kb
                 DEFB %10101010
+;               DEFB %01010101
+;               DEFB %00000000
+;               DEFB %00000000
                 EDUP 
 
-;Print text string to window.
+;Part only in draft, to save history.
+
+SCROLL_SCREEN:
+        PUSH AF
+        PUSH BC
+        PUSH DE
+        PUSH HL
+        PUSH IX
+        PUSH IY
+
+        ;LD HL,STRING_BUFFER
+        ;LD DE,SCREEN_PIXELS
+        ;LD BC,#0200
+        ;LDIR
+
+        LD A,%01111000
+        LD HL,FONT_ENG
+        LD IX,STRING_TXT
+        LD IY,SCREEN_PIXELS
+        ;LD IY,STRING_BUFFER
+        LD BC,#1802
+        LD D,#00
+        LD E,%10000000
+        ;CALL PRINT_STRING_WIN
+
+        LD B,#01        ;ANIMATION
+S_SCR_7:HALT 
+        PUSH BC
+        LD HL,SCREEN_PIXELS
+        LD DE,SCREEN_PIXELS
+        LD C,#01                ;PARTS
+S_SCR_8:PUSH BC
+        LD A,C
+        CPL 
+        AND %00000011   ;ONLY PART
+        RLCA 
+        RLCA 
+        RLCA 
+        LD B,A
+        LD A,H          ;NEXT PART 2K
+        AND %11100111
+        OR B
+        LD H,A
+        LD L,#00
+        LD A,#08        ;PARTS OF 2K
+
+S_SCR_6:PUSH AF         ;CYCLE
+        PUSH HL
+        LD A,#07
+        ;HALT
+S_SCR_5:INC H           ;HL = NEXT LINE
+        PUSH HL
+        PUSH DE
+        LD BC,#0020
+        LDIR            ;MOVE 7 LINES
+        POP DE
+        INC D           ;NEXT LINE
+        POP HL
+        DEC A
+        JR NZ,S_SCR_5
+        POP HL
+        POP AF          ;PARTS OF 2K
+        CP #01
+        JR NZ,S_SCR_9
+        LD BC,#720      ;LAST LINE OF 2K
+        JR S_SCR_A
+S_SCR_9:LD BC,#0020     ;MOVE 8TH LINE
+S_SCR_A:ADD HL,BC
+        PUSH HL
+        PUSH HL
+        LD BC,#0020
+        LDIR 
+        POP HL          ;DE = HL
+        POP DE          ;
+        DEC A
+        JR NZ,S_SCR_6   ;NEXT 8 LINES
+        POP BC
+        DEC C
+        JR NZ,S_SCR_8   ;NEXT 2K PART
+        POP BC
+        LD A,#07
+        OUT (#FE),A
+        DEC B
+        JR NZ,S_SCR_7   ;NEXT FRAME
+
+        POP IY
+        POP IX
+        POP HL
+        POP DE
+        POP BC
+        POP AF
+        RET 
+
+;Print text string to window with color.
+;Scale factor only for font.
 ;D      window coordinate Y[0..23];
-;E      [BITS:]
+;E      [BITS]:
 ;0..4   window coordinate X[0..31];
 ;5..6   scaling for font;
 ;7      reserved;
-;B      window size Y[1..23];
+;B      window size Y[1..24];
 ;C      window size X[1..32];
 ;HL     address of font;
 ;IX     address of string;
@@ -457,17 +478,17 @@ PRINT_STRING_WIN:
         PUSH HL
         PUSH IX
 
-        PUSH DE         ;SAVE COORDINATES
-        PUSH BC         ;AND SIZES
-        LD A,E          ;SCALE PARAMETER
-        AND %01100000
+        PUSH DE         ;SAVE SOURCE
+        PUSH BC         ;COORDINATES
+        LD A,E          ;SCALE
+        AND %01100000   ;PARAMETER
         RLCA 
         RLCA 
         RLCA 
         OR A
         JR Z,PR_ST_2
         PUSH HL
-        LD H,A          ;H SCALE
+        LD H,A
         LD A,E          ;ONLY COORDINATE
         AND %00011111
         LD E,A
@@ -478,14 +499,14 @@ PR_ST_1:SLA D           ;SCALE WINDOW
         DEC H
         JR NZ,PR_ST_1
         POP HL          ;HL = FONT
-PR_ST_2:
-        LD A,B          ;CHECK Y SIZES
+
+PR_ST_2:LD A,B          ;CHECK Y SIZES
         OR A
-        JR Z,PR_ST_3
-        ADD A,D         ;PLUS COORDINATE
+        JR Z,PR_ST_3    ;IF SIZE Y = 0
+        ADD A,D
         LD D,A
         LD A,SCR_ATTR_SIZE_Y
-        CP D            ;OUT OF SCREEN Y
+        CP D            ;OUT OF SCREEN
         JR C,PR_ST_3
         LD A,C          ;CHECK X SIZES
         OR A
@@ -494,37 +515,37 @@ PR_ST_2:
         ADD A,C
         LD E,A
         LD A,SCR_ATTR_SIZE_X
-        CP E            ;OUT OF SCREEN X
+        CP E            ;OUT OF SCREEN
         JR C,PR_ST_3
-        JR PR_ST_4
+        JR PR_ST_4      ;SIZES OK
 PR_ST_3:POP BC          ;WINDOW INCORRECT
         POP DE
-        JR PR_ST_0      ;EXIT
-
+        JP PR_ST_0      ;EXIT
 PR_ST_4:POP BC          ;RESTORE SOURCE
         POP DE          ;COORDINATES
 
 PR_ST_7:PUSH BC         ;PRINT TEXT
         PUSH DE
-PR_ST_6:LD A,(IX+0)     ;A = CHAR
+PR_ST_6:LD A,(IX+0)
         OR A            ;IF NULL CHAR
         JR Z,PR_ST_5
-        PUSH BC
+        PUSH BC         ;ABOUT INTERFACE
         PUSH IY
-        POP BC          ;BC - BUFFER
+        POP BC
         CALL PRINT_CHAR_AT
         POP BC
-        INC IX          ;NEXT CHAR
-        INC E
+        INC IX
+        INC E           ;NEXT CHAR
         DEC C
         JR NZ,PR_ST_6
-        POP DE          ;NEXT LINE Y
-        INC D
+        POP DE
+        INC D           ;NEXT LINE
         POP BC
         DJNZ PR_ST_7
         JR PR_ST_0
-PR_ST_5:POP DE          ;CORRECT STACK
+PR_ST_5:POP DE          ;NULL CHAR
         POP BC
+
 PR_ST_0:POP IX
         POP HL
         POP DE
@@ -539,43 +560,49 @@ PR_ST_0:POP IX
 OFFSET_ATTR:
         PUSH AF
         PUSH DE
-        LD HL,#4000     ;#40 = %01000000
-        LD A,D          ;CORRECT IF ONLY
-        AND %00011000   ;BITS 3,4 SET TO 0
-        ADD A,H
+
+        LD HL,#4800
+        LD A,D
+        AND %00011000   ;CORRECT IF ONLY
+        ADD A,H         ;BITS 3,4 SET TO 0
         LD H,A
         LD A,D
         AND %00000111
-        LD D,A          ;L MUST BE 0
-        SRL D           ;4 BYTES, 16 TACTS
-        RR L            ;
+        SRL D           ;L MUST BE 0
+        RR L            ;4 BYTES, 16 TACTS
         SRL D
         RR L
         SRL D
-        RR L            ;12 BYTES AND
+        RR L            ;12 BYTES
         ADD HL,DE       ;48 TACTS
+
         LD A,#FF
         LD (HL),A
+
         POP DE
         POP AF
         RET 
 
-;Stream 10. Print text with scaling.
+;Stream 10. Print string with scaling.
 
-PRINT_TEXT_SCALE:
+PRINT_STR_SCALE:
         PUSH AF
         PUSH BC
         PUSH DE
         PUSH HL
         PUSH IX
+        ;LD HL,FONT_ENG
+        ;LD BC,SCREEN_PIXELS
+        ;LD A,48
+        ;CALL PRINT_CHAR_AT
         LD IX,STRING_TXT
+        LD B,#03
         LD HL,FONT_ENG
-        LD D,%00000001
-        LD E,%01100000
-        LD B,#04
+        LD D,%00000011
+        LD E,%00111111
 STR_1:  PUSH BC
-        LD A,(IX+0)
         LD BC,SCREEN_PIXELS
+        LD A,(IX+0)
         CALL PRINT_CHAR_AT
         POP BC
         INC IX
@@ -588,9 +615,7 @@ STR_1:  PUSH BC
         POP AF
         RET 
 
-STRING_TXT:     DEFB "8-BIT TEA PARTY!",0
-
-;Stream 9. Print char at screen position.
+;Stream 9. Print chars at screen position.
 
 PRINT_CHARS_SCR:
         PUSH AF
@@ -598,29 +623,29 @@ PRINT_CHARS_SCR:
         PUSH DE
         PUSH HL
         LD A,FONT_CODE_START
-        LD BC,SCREEN_PIXELS
         LD DE,#0000
+        LD BC,SCREEN_PIXELS
         LD HL,FONT_ENG
 PRC_S3: CALL PRINT_CHAR_AT
-        INC A           ;NEXT CHAR
+        INC A
         CP #60
         JR NZ,PRC_S1
         LD A,FONT_CODE_START
 PRC_S1: PUSH AF
-        INC E           ;NEXT X
+        INC E
         LD A,E
         CP SCR_ATTR_SIZE_X
         JR NZ,PRC_S2
-        XOR A           ;X = 0
+        XOR A
         LD E,A
         INC D
-        LD A,D          ;IF Y MAX
+        LD A,D
         CP SCR_ATTR_SIZE_Y
         JR NZ,PRC_S2
         POP AF
         JR PRC_S4
 PRC_S2: POP AF
-        JR PRC_S3       ;NEXT PRINT
+        JR PRC_S3
 PRC_S4: POP HL
         POP DE
         POP BC
@@ -629,25 +654,25 @@ PRC_S4: POP HL
 
 ;Testing russian codepage.
 
-        DEFB "©æãª¥­£èé§"
+        DEFB "йцукенгшщз"
+        DEFB "фывапролд;'"
+        DEFB "ячсмить,./"
+        DEFB "бэЭхжЖ-+=;'"
+        DEFB "<>ХБ;"
+        DEFB ":ю?/*,.,"
 
 ;Print char 8x8 pixels on screen.
+;Using scaling and
 ;A      char to print;
 ;BC     address of screen(left-top);
 ;E      [BITS]:
-;0..4   coordinate X [0..31];
+;0..4   coordinate on screen X [0..23];
 ;5..6   char scale [0..3] parameter:
 ;       0 - no scale;
 ;       1..3 - scale 2,4,8 pixel size;
 ;7      reserved;
-;D      coordinate on screen Y [0..23];
+;D      coordinate on screen Y [0..31];
 ;HL     address of font.
-
-;EXAMPLE WITH DATA FONT TO SCREEN:
-;01001101 SCALE 2: 00110000_11110011 PIX:4
-;0100.... SCALE 4: 00001111_00000000_....
-;SCALE: 0 - 8 PIXELS PER BYTE, X1.
-;SCALE: 1 - 4 PIXELS PER BYTE, X2.
 
 PRINT_CHAR_AT:
         PUSH AF
@@ -661,72 +686,83 @@ PRINT_CHAR_AT:
         EX DE,HL        ;THX TO D.KRAPIVIN
         SUB FONT_CODE_START
         LD L,A
+;LD H,#HIGH PART OF FONT ADDRESS.
+;       LD H,#10        ;#10 TO #8000
+
         LD H,#00
-;HACK FROM OUR VIEWERS LD H,#10
-;FOR FIXED FONT ADDRESS.
-        ADD HL,HL       ;CODE * 8 BYTES
+        ADD HL,HL       ;MULTIPLY 8
         ADD HL,HL
         ADD HL,HL
         ADD HL,DE       ;ADD BASE ADDR
-        PUSH HL         ;HL CLEAR
+        PUSH HL
         POP IX          ;IX = FONT ADDR
-        POP DE
+        POP DE          ;HL CLEAR
 
-        LD A,E          ;SCALE PARAMETER
-        AND %01100000
-        JR Z,P_CHR_1
-        RLCA            ;A = 1..3 SCALE
+;OPTIMIZATION
+
+        LD A,E          ;SCALE
+        AND %01100000   ;PARAMETER
+        JR Z,P_CHR_2    ;IF NO SCALE
+        RLCA            ;SCALE PARAMETER
         RLCA 
         RLCA 
         LD H,A          ;SAVE COUNTER
         LD L,A
         LD A,E
-        AND %00011111   ;5 LOW BITS AS X
+        AND %00011111   ;ONLY COORDINATES
         LD E,A
-P_CHR_2:SLA E           ;SCALE COORDINATES
+P_CHR_3:SLA E           ;SCALE COORDINATES
         SLA D
         DEC H
-        JR NZ,P_CHR_2
-        LD A,L          ;RESTORE SCALE
-
-P_CHR_1:LD L,A          ;CHECK COORDINATES
-        LD A,D          ;COORDINATE Y
+        JR NZ,P_CHR_3   ;NEXT
+        LD A,L
+P_CHR_2:
+        LD L,A          ;CHECK COORDINATES
+        LD A,D          ;FIX C
         CP SCR_ATTR_SIZE_Y
         JP NC,P_CHR_R
-        LD A,E          ;COORDINATE X
+        LD A,E
         CP SCR_ATTR_SIZE_X
         JP NC,P_CHR_R
-        LD A,L          ;SCALE
+        LD A,L
 
-                        ;OFFSET OF SCREEN
-        LD A,D          ;[0..23] 5 BITS
+;USING L REGISTER
+
+;       PUSH AF         ;SAVE SCALE
+        LD A,D          ;[0..23]
         AND %00011000   ;3,4 BITS 2K PART
-        ADD A,B         ;2048 = 2^11
+        ADD A,B
         LD B,A
         LD A,D
         AND %00000111   ;[0..7] * 32
         RRCA            ;5,6,7 BITS OFFS
         RRCA            ;CYCLE
-        RRCA 
+        RRCA            ;12 TACTS, 3 BYTES
         ADD A,E         ;PLUS X POSITION
-        ADD A,C         ;FROM BUFFER X
+        ADD A,C         ;LOW PART BASE
         JR NC,P_CHR_G
-        INC B           ;INC H_BUFFER
-P_CHR_G:LD C,A
-        LD A,L          ;A = SCALE
+        INC B           ;CARRY ONE BIT
+P_CHR_G:LD C,A          ;BC OFFSET BUFFER
+        LD A,L
         PUSH BC         ;BC CLEAR
-        POP IY          ;IY = BUFFER ADDR
+        POP IY          ;IY = ADDR BUFFER
+
+;       LD A,#FF        ;TEST
+;       LD (IY+0),A
+;       JR P_CHR_R
+
+;0 = 8, 1 = 4, 2 = 1, 3 = 0
 
         LD H,#08        ;H = PIXS PER BYTE
         LD L,#01        ;L = CELLS ON CHAR
-        OR A            ;AS 0 = DEFAULT X1
-        JR Z,P_CHR_3
+        OR A            ;AS 0 = DEFAULT 1
+        JR Z,P_CHR_C
 P_CHR_4:SRL H           ;DIV 2 PIXELS
         SLA L           ;MUL 2 CELLS
-        DEC A           ;DEC COUNTER
-        JR NZ,P_CHR_4
-
-P_CHR_3:LD C,L          ;C = VERT CELLS
+        DEC A
+        JR NZ,P_CHR_4   ;NEXT SCALE
+P_CHR_C:
+        LD C,L          ;C = VERT CELLS
 P_CHR_B:PUSH IY
         LD B,FONT_SIZE  ;B = LINES IN CELL
         LD A,L          ;FONT NEXT LINE
@@ -736,10 +772,10 @@ P_CHR_A:PUSH AF
         LD E,L          ;E = HORIZ CELLS
         LD A,(IX+0)     ;A = FONT DATA ROM
 P_CHR_9:LD C,H          ;C = PIXS PER BYTE
-        LD D,%00000000  ;D = DATA TO WRITE
+        LD D,#00        ;D = DATA TO WRITE
 P_CHR_8:LD B,L          ;FOR ONE BYTE
-        RLCA            ;IF 7 IS BIT SET
-        JR C,P_CHR_5
+        RLCA            ;TAKE 7 BIT
+        JR C,P_CHR_5    ;IF BIT SET
 P_CHR_6:RL D            ;SAVE 0 AND ROLL
         DJNZ P_CHR_6
         JR P_CHR_7
@@ -748,23 +784,23 @@ P_CHR_5:SCF             ;SAVE 1 AND ROLL
         DJNZ P_CHR_5
 P_CHR_7:DEC C           ;NEXT PART OF BYTE
         JR NZ,P_CHR_8
-        LD (IY+0),D
-        INC IY          ;NEXT CELL
+        LD (IY+0),D     ;WRITE DATA BUFFER
+        INC IY
         DEC E
-        JR NZ,P_CHR_9
-        POP IY          ;MOVE TO LEFT BUF
+        JR NZ,P_CHR_9   ;NEXT HORIZ CELL
+        POP IY
         LD DE,#0100     ;NEXT LINE BUFFER
-        ADD IY,DE       ;+256 BYTES OFFSET
+        ADD IY,DE
         POP BC
-        POP AF          ;IF NEED NEXT FONT
-        DEC A
-        JR NZ,P_CHR_C
+        POP AF
+        DEC A           ;DEC FNT COUNTER
+        JR NZ,P_CHR_F
         LD A,L          ;RESET COUNTER
         INC IX          ;NEXT FONT LINE
-P_CHR_C:DJNZ P_CHR_A    ;NEXT LINE CELL
+P_CHR_F:DJNZ P_CHR_A    ;NEXT LINE CELL
         POP IY
-        LD DE,SCR_ATTR_SIZE_X
-        ADD IY,DE       ;NEXT CELL BUFFER
+        LD DE,#0020     ;NEXT CELL BUFFER
+        ADD IY,DE
         DEC C
         JR NZ,P_CHR_B
 
@@ -776,76 +812,78 @@ P_CHR_R:POP IY
         POP AF
         RET 
 
-TEXT_TO_SCROLL:
-        DB "WELCOME TO 8-BIT TEA PARTY!  "
-        DB "RETRO CODE FOR ZX SPECTRUM!  "
-        DB "Z80 ASSEMBLER AND 8-BIT TEA! "
-        DB "HELLO TO ALL OUR FRIENDS!    "
+IM2_COUNTER     DB #00  ;SIMPLE COUNTER
+TIMER_L_SEC     DB #00  ;SECONDS
+TIMER_H_SEC     DB #00  ;10TH SECONDS
 
 ;Print character using colors attributes.
-;A      character from 0..3;
-;F[FLAGS]:
+;A[BITS]:
+;0..7   character from '0'..'9' and ':',
+;F      [FLAGS]:
 ;C      is using next color on next line;
 ;BC     first color attribute and paper;
 ;DE     vertical and horizontal position;
-;HL     address of font.
+;HL     address of font with starting '0'.
 
 PRINT_A_CHAR:
-        PUSH AF         ;SAVE REGS
-        EX AF,AF'       ;SAVE AF'
+        PUSH AF         ;Save registers
+        EX AF,AF'       ;USING IN PROGRAM
         PUSH AF
         EX AF,AF'
         PUSH BC
         PUSH DE
-        PUSH HL
-        PUSH IX         ;NO PERFORMANCE
+        PUSH HL         ;No performance
+        PUSH IX
+
         PUSH AF         ;AF' = AF
         EX AF,AF'       ;C FLAG FOR
         POP AF          ;NEXT COLOR
         EX AF,AF'
+
         PUSH DE
         EX DE,HL
         SUB FONT_CODE_START
         LD L,A
-        LD H,#00
-        ADD HL,HL       ;A(CHAR)*8
+        LD H,#00        ;CHAR * 8
+        ADD HL,HL
         ADD HL,HL
         ADD HL,HL
         ADD HL,DE
-        PUSH HL
-        POP IX          ;IX=HL=FONT CHAR
+        PUSH HL         ;HL = CHAR
+        POP IX          ;IX = HL
         POP DE
-        LD H,FONT_SIZE  ;8 LINES
-PRA_C3: PUSH DE
+
+        LD H,FONT_SIZE
+PRA_C3: PUSH DE         ;SAVE COORDS
         PUSH BC
-        LD L,FONT_SIZE  ;8 BITS(PIXELS)
-PRA_C2: LD A,C
-        RLC (IX+0)      ;IF BIT SET
-        JR NC,PRA_C1    ;C-10110101
-        LD A,B          ;COLOR
+        LD L,FONT_SIZE  ;BITS IN LINE
+PRA_C2: LD A,C          ;BACKGROUND
+        RLC (IX+0)      ;HIGH -> LOW
+        JR NC,PRA_C1
+        LD A,B
 PRA_C1: CALL SET_ATTRIBUTE
-        INC E
+        INC E           ;NEXT COLUMN
         DEC L
         JR NZ,PRA_C2
         POP BC
-        EX AF,AF'
+        EX AF,AF'       ;IF NEXT COLOR
         JR NC,PRA_C5
         EX AF,AF'
-        LD A,B          ;NEXT COLOR
-        AND %11000111
-        LD E,A          ;E OTHER BITS
-        LD A,B          ;B=01011011
-        AND %00111000   ;M=00111000
-        ADD A,%00001000 ;R=00011000
-        AND %00111000   ;MULTIPLY COMMON
-        OR E            ;1+2=3 4+8=12
+        LD A,B          ;NEXT PAPER COLOR
+        AND %11000111   ;INVERT MASK
+        LD E,A          ;SAVE
+        LD A,B
+        AND %00111000   ;PAPER
+        ADD A,%00001000 ;MULTIPLY COMMON
+        AND %00111000   ;ONLY PAPER
+        OR E            ;WITH OTHER BITS
         LD B,A          ;NEW COLOR
         JR PRA_C4
-PRA_C5: EX AF,AF'
+PRA_C5: EX AF,AF'       ;MAIN AF
 PRA_C4: POP DE
         INC D           ;NEXT LINE
         INC IX
-        DEC H           ;COUNTER LINE
+        DEC H
         JR NZ,PRA_C3
         POP IX
         POP HL
@@ -856,6 +894,22 @@ PRA_C4: POP DE
         EX AF,AF'
         POP AF
         RET 
+
+;Interrupt function, called every 1/50sec.
+
+IM2:    DI 
+        PUSH AF
+        LD A,1
+        OUT (#FE),A
+        IN A,(KEMPSTON_PORT)
+        AND KEMPSTON_MASK
+        LD (KEMPSTON),A
+        LD A,(IM2_COUNTER)
+        INC A
+        LD (IM2_COUNTER),A
+IM2_0:  POP AF
+        EI 
+        RETI 
 
 ;Setup IM2 interrupt mode and function.
 ;DE     address function to call AT 1/50s.
@@ -868,6 +922,7 @@ IM2_SETUP:
         LD L,IM2_B_DATA
         LD A,H
         LD I,A          ;I - IM2
+        ;LD DE,IM2      ;CLEAR!
         LD (HL),E
         INC HL
         LD (HL),D       ;[IM2] - ADDR
@@ -877,30 +932,8 @@ IM2_SETUP:
         EI 
         RET 
 
-;Interrupt function, called every 1/50sec.
-
-IM2:    DI 
-        PUSH AF
-        LD A,#01
-        OUT (#FE),A
-        POP AF
-        EI 
-        RETI 
-
-;INCLUDE LIBRARY FUNCTIONS AND MAIN FONT.
+;DATA AND OTHER INCLUDES.
 
 LIBRARY:        INCLUDE "STR_LIB.A",1
 
 ALL_FONTS_DATA: INCLUDE "FONTS.A",0
-
-BG_GAME:        INCBIN "BG02.C",4096
-
-BOB_MASK:       INCBIN "BOB_MSK1.C"
-                INCBIN "BOB_MSK2.C"
-
-BOB_DATA_1:     INCBIN "BOB_P1F1.C"
-                INCBIN "BOB_P2F2.C"
-
-BOB_DATA_2:     INCBIN "BOB_P1F1.C"
-                INCBIN "BOB_P2F3.C"
-   
