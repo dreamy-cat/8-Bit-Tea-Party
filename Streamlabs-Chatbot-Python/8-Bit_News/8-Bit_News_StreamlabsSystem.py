@@ -35,6 +35,7 @@ global ScriptSettings
 ScriptSettings = MySettings()
 NewsFile = os.path.dirname(__file__)+"\\News\\News.txt" #path to the news file
 PoppedNewsFile = os.path.dirname(__file__)+"\\News\\Popped_news.txt" #path to the file with news which was popped
+NO_MORE_NEWS = u"Новостей больше нет"
 
 #---------------------------
 #   [Required] Initialize Data (Only called on load)
@@ -70,9 +71,8 @@ def SendNewsToChatFromNewsFile(NewsFile = "", PoppedNewsFile = ""):
     with open(NewsFile, 'w') as file:
         file.writelines(lines)
 
-    if NewsToSend == "":
-        NO_NEWS = u"Новостей больше нет"
-        NewsToSend = NO_NEWS
+    if NewsToSend == "":        
+        NewsToSend = NO_MORE_NEWS
 
     return NewsToSend
 
