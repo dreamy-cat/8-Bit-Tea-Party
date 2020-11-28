@@ -33,8 +33,8 @@ global SettingsFile
 SettingsFile = ""
 global ScriptSettings
 ScriptSettings = MySettings()
-NewsFile = os.path.dirname(__file__)+"\\News\\News.txt" #path to the news file
-PoppedNewsFile = os.path.dirname(__file__)+"\\News\\Popped_news.txt" #path to the file with news which was popped
+NEWS_FILE = os.path.dirname(__file__)+"\\News\\News.txt" #path to the news file
+POPPED_NEWS_FILE = os.path.dirname(__file__)+"\\News\\Popped_news.txt" #path to the file with news which was popped
 NO_MORE_NEWS = u"Новостей больше нет"
 
 #---------------------------
@@ -55,26 +55,53 @@ def Init():
 #---------------------------
 #   [Required] Send Message to Chat / Process messages
 #---------------------------
-def SendNewsToChatFromNewsFile(NewsFile = "", PoppedNewsFile = ""):
-    OpenedNewsFile = io.open(NewsFile, "r", encoding="utf-8")
-    NewsToSend = OpenedNewsFile.readline()
-    OpenedNewsFile.close()
 
-    if NewsToSend != "":
-        OpenedPoppedNewsFile = io.open(PoppedNewsFile, "a", encoding="utf-8")
-        OpenedPoppedNewsFile.writelines(NewsToSend)
-        OpenedPoppedNewsFile.close()
+def Log(message): # for debugging
+    Parent.Log(ScriptName, message)
 
-    with open(NewsFile) as file:
-        lines = file.readlines()[1::] # all lines to keep except first
+def ReadLineFromTheTextFile(textFile = NEWS_FILE):
+    tFile = io.open(textFile, "r", encoding="utf-8")
+    line = tFile.readline()
+    tFile.close()
+    
+    return line
 
-    with open(NewsFile, 'w') as file:
-        file.writelines(lines)
+def WriteLineToEndOfTheTextFile(textFile = POPPED_NEWS_FILE, line = ""):
+    tFile = io.open(textFile, "a", encoding="utf-8")
+    tFile.writelines(line)
+    tFile.close()
 
-    if NewsToSend == "":        
-        NewsToSend = NO_MORE_NEWS
+def DeleteFirstLineOfTheTextFile(textFile = NEWS_FILE):
+    with open(textFile) as tFile:
+        lines = tFile.readlines()[1::] # all lines to keep except first
+    
+    with open(textFile, 'w') as tFile:
+        tFile.writelines(lines)
 
-    return NewsToSend
+def SendNewsToChat(newsFile = NEWS_FILE, poppedNewsFile = POPPED_NEWS_FILE, noMoreNewsText = NO_MORE_NEWS):    
+    
+    lineOfTextOfTheNews = "" # for popping just text of the news to text file
+    newsToSend = ""
+    
+    for i in range(2):
+        if i == 0:
+            newsToSend = ReadLineFromTheTextFile(newsFile)
+            if newsToSend != "":
+                WriteLineToEndOfTheTextFile(poppedNewsFile, newsToSend)
+        else:
+            lineOfTextOfTheNews = ReadLineFromTheTextFile(newsFile)
+            
+            if newsToSend != "":
+                newsToSend += "\n" + lineOfTextOfTheNews
+                if lineOfTextOfTheNews != "":
+                    WriteLineToEndOfTheTextFile(poppedNewsFile, lineOfTextOfTheNews)
+        
+        DeleteFirstLineOfTheTextFile(newsFile)    
+    
+    if newsToSend == "":
+        newsToSend = noMoreNewsText
+
+    return newsToSend
 
 #---------------------------
 #   [Required] Execute Data / Process messages
@@ -86,7 +113,7 @@ def Execute(data):
     #   Check if the propper command is used, the command is not on cooldown and the user has permission to use the command
     if data.IsChatMessage() and data.GetParam(0).lower() == ScriptSettings.Command and not Parent.IsOnUserCooldown(ScriptName,ScriptSettings.Command,data.User) and Parent.HasPermission(data.User,ScriptSettings.Permission,ScriptSettings.Info):
         Parent.BroadcastWsEvent("EVENT_MINE","{'show':false}")
-        Parent.SendStreamMessage(SendNewsToChatFromNewsFile(NewsFile, PoppedNewsFile))    # Send news to chat
+        Parent.SendStreamMessage(SendNewsToChat(NEWS_FILE, POPPED_NEWS_FILE))    # Send news to chat
         Parent.AddUserCooldown(ScriptName,ScriptSettings.Command,data.User,ScriptSettings.Cooldown)  # Put the command on cooldown
 
     

@@ -1,5 +1,10 @@
-News 1. Новости 1 - https://translate.google.com/#auto/ru/like%20from%20stack
-News 2. Новости 2 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate
-News 3. Новости 3 - https://github.com/dreamy-cat/8-Bit-Tea-Party
-News 4. Новости 4 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate/wiki/Creating-UI-Config-File
-News 5. Новости 5 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate/wiki
+News Title 1. Заголовок новости 1
+Text of the News 1. Текст новости 1 - https://translate.google.com/#auto/ru/like%20from%20stack
+News Title 2. Заголовок новости 2
+Text of the News 2. Текст новости 2 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate
+News Title 3. Заголовок новости 3
+Text of the News 3. Текст новости 3 - https://github.com/dreamy-cat/8-Bit-Tea-Party
+News Title 4. Заголовок новости 4
+Text of the News 4. Текст новости 4 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate/wiki/Creating-UI-Config-File
+News Title 5. Заголовок новости 5
+Text of the News 5. Текст новости 5 - https://github.com/AnkhHeart/Streamlabs-Chatbot-Python-Boilerplate/wiki
