@@ -1,2 +1,2 @@
-.vscode
-workspace.code-workspace
+.vscode/
+*.code-workspace
