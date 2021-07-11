@@ -78,7 +78,7 @@ def DeleteFirstLineOfTheTextFile(textFile = NEWS_FILE):
     with open(textFile, 'w') as tFile:
         tFile.writelines(lines)
 
-def SendNewsToChat(newsFile = NEWS_FILE, poppedNewsFile = POPPED_NEWS_FILE, noMoreNewsText = NO_MORE_NEWS):    
+def SendNewsToChat(newsFile = NEWS_FILE, poppedNewsFile = POPPED_NEWS_FILE, noMoreNewsText = NO_MORE_NEWS):
     
     lineOfTextOfTheNews = "" # for popping just text of the news to text file
     newsToSend = ""
