@@ -1991,7 +1991,9 @@ def part_11_2c_theory():
 
 #MAIN
 
-part_11_2c_theory()
+# part_11_2c_theory()
+
+part_01()
 
 
 
