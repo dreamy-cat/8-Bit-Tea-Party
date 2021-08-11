@@ -29,3 +29,7 @@ TB_04h: Zubkov_-_Assembler_dlya_DOS_Windows_i_UNIX.pdf
         
 TB_05h: Скляров И. Изучаем Assembler за 7 дней (2010).pdf
         ;(...)
+
+TB_06h: Abrash M. - Graphics Programming Black Book - 1997.djvu
+        ;(1-57610-174-6)
+        ;(...)
