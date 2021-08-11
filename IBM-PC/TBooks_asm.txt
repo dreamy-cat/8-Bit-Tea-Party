@@ -25,3 +25,7 @@ TB_03h: progintro_e2v1.pdf
         
 TB_04h: Zubkov_-_Assembler_dlya_DOS_Windows_i_UNIX.pdf
         ;(ISBN 5-94074-259-9)
+        ;(...)
+        
+TB_05h: Скляров И. Изучаем Assembler за 7 дней (2010).pdf
+        ;(...)
