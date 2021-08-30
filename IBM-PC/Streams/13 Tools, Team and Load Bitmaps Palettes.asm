@@ -366,5 +366,4 @@ TimDel1:mov ax,es:[di]
         popf
         ret
 
-
 %include "vgax_lib.asm"
