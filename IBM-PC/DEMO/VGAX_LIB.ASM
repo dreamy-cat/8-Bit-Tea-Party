@@ -115,8 +115,8 @@ SetMX1: lodsw                   ;Load parameter in table.
         mov ah,00001111b        ;All planes, faster 4pixel for byte.
         out dx,ax
 
-;        popf
-;        ret
+        popf
+        ret
 
 ;Простое тестирование экрана, заполняем все плоскости палитрой CGA.
 
