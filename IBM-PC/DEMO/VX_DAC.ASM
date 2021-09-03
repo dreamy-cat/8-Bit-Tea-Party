@@ -318,6 +318,59 @@ Read8888Color:
         inc     si      ; a
         ret
 
+; Set one color of the palette
+
+; Input:
+;   AL = color
+;   AH = r
+;   BL = g
+;   BH = b
+VXSetPalColor:
+        push    ax
+        push    dx
+        cli
+        mov     dx, VGA_DAC_WRITE
+        out     dx, al          ; color
+        mov     dx, VGA_DAC_DATA
+        mov     al, ah
+        out     dx, al          ; r
+        mov     al, bl
+        out     dx, al          ; g
+        mov     al, bh
+        out     dx, al          ; b
+        sti
+        pop     dx
+        pop     ax
+        ret
+
+; Get one color of the palette
+
+; Input:
+;   AL = color
+; Output:
+;   AH => r
+;   BL => g
+;   BH => b
+VXGetPalColor:
+        push    cx
+        push    dx
+        mov     cl, al          ; save color
+        cli
+        mov     dx, VGA_DAC_READ
+        out     dx, al          ; color
+        mov     dx, VGA_DAC_DATA
+        in      al, dx          ; r
+        mov     ah, al
+        in      al, dx          ; g
+        mov     bl, al
+        in      al, dx          ; b
+        mov     bh, al
+        sti
+        mov     al, cl          ; restore color
+        pop     dx
+        pop     cx
+        ret
+
 ;Draw standard palette to screen.
 
 ColorTableDraw:
