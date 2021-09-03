@@ -60,3 +60,4 @@ SCR_GFX_HEIGHT          EQU 00F0h       ;240 точек по высоте.
 SCR_GFX_COLORS          EQU 0100h       ;256 цветов по таблице.
 SCR_GFX_BPP             EQU 08h         ;Количество бит на точку.
 SCR_GFX_BPC             EQU 06h         ;Количество бит на компонент цвета.
+SCR_GFX_WIDTH_BYTES     EQU SCR_GFX_WIDTH / 4 ; Количество байтов в строке
