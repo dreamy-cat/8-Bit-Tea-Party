@@ -24,34 +24,37 @@ VGA_PEL_MASK            EQU 3C6h
         mov ax,13h                      ;13h standard video mode.
         int 10h
 
+        ; fill packed 6-6-6-6 palette
         mov     di, palette_rgb_6
-        xor     ax, ax
-        xor     cx, cx
-        mov     si, 100h
+        xor     ax, ax          ; bit buffer for output stream
+        xor     cx, cx          ; ch = number of bits in buffer
+                                ; Example:
+                                ;   AX = rrrrrr00 00000000
+                                ;   CH = 6
+        mov     si, 100h        ; counter of colors
 
-        mov     bl, 0
-        mov     bh, 0
-        mov     dl, 0
+        mov     bl, 0           ; current R
+        mov     bh, 0           ; current G
+        mov     dl, 0           ; current B
 Lp1:
-; rrrrrrgg ggggbbbb bbrrrrrr ggggggbb bbbbrrrr rrgggggg bbbbbbrr rrrrgggg
-; ggbbbbbb
-        mov     al, bl
+        mov     al, bl          ; add R to bit buffer: xxxx???? 00rrrrrr
         mov     cl, 2
-        shl     al, cl
+        shl     al, cl          ; move to left byte side: xxxx???? rrrrrr00
         mov     cl, 8
-        sub     cl, ch
-        shr     ah, cl
-        shl     ax, cl
-        add     ch, 6
-        cmp     ch, 8
+        sub     cl, ch          ; 8-CH = free bits in AH
+        shr     ah, cl          ; move data to right edge: 0000xxxx rrrrrr00
+        shl     ax, cl          ; move data with R to buffer begin:
+                                ;   xxxxrrrr rr000000
+        add     ch, 6           ; bits += 6
+        cmp     ch, 8           ; is there at least one full byte?
         jb      Lbl1
-        mov     [di], ah
+        mov     [di], ah        ; yes, write it to the palette
         inc     di
         mov     cl, 8
-        shl     ax, cl
-        sub     ch, cl
+        shl     ax, cl          ; remove from buffer
+        sub     ch, cl          ; bits -= 8
 
-Lbl1:   mov     al, bh
+Lbl1:   mov     al, bh          ; add G to bit buffer
         mov     cl, 2
         shl     al, cl
         mov     cl, 8
@@ -67,7 +70,7 @@ Lbl1:   mov     al, bh
         shl     ax, cl
         sub     ch, cl
 
-Lbl2:   mov     al, dl
+Lbl2:   mov     al, dl          ; add B to bit buffer
         mov     cl, 2
         shl     al, cl
         mov     cl, 8
@@ -84,33 +87,33 @@ Lbl2:   mov     al, dl
         sub     ch, cl
 
 Lbl3:   mov     bp, si
-        and     bp, 11000000b
+        and     bp, 11000000b   ; bp = number of quarter of palette
 
-        cmp     bp, 11000000b
+        cmp     bp, 11000000b   ; red - only in 1st part
         jnz     Lbl4
-        inc     bl
+        inc     bl              ; r++
         and     bl, 00111111b
 Lbl4:
-        cmp     bp, 10000000b
+        cmp     bp, 10000000b   ; green - in 2nd and 4th parts
         jnz     Lbl5
-        inc     bh
+        inc     bh              ; g++
         and     bh, 00111111b
 Lbl5:   cmp     bp, 00000000b
         jnz     Lbl6
-        inc     bh
+        inc     bh              ; g++
         and     bh, 00111111b
 Lbl6:
-        cmp     bp, 01000000b
+        cmp     bp, 01000000b   ; blue - in 3rd and 4th parts
         ja      Lbl7
-        inc     dl
+        inc     dl              ; b++
         and     dl, 00111111b
 Lbl7:
-        dec     si
+        dec     si              ; counter--
         jnz     Lp1
 
-        mov     al, 0
-        mov     ah, 0
-        mov     cl, 18
+        mov     al, 0           ; first color
+        mov     ah, 0           ; all 256 colors
+        mov     cl, 18          ; packed format
         mov     dx, palette_rgb_6
         call    VXSetPalette
 
@@ -119,51 +122,52 @@ Lbl7:
         mov ah,00h                      ;Press any key...
         int 16h
 
+        ; fill unpacked 8-8-8 palette
         mov     di, palette_rgb_8
-        mov     cx, 64
+        mov     cx, 64          ; first 64 colors
         mov     bl, 0
-Lp2:    mov     al, bl
+Lp2:    mov     al, bl          ; r = counter
         stosb
-        mov     al, 0
+        mov     al, 0           ; g = 0
         stosb
-        mov     al, 0
+        mov     al, 0           ; b = 0
         stosb
         inc     bl
         loop    Lp2
-        mov     cx, 64
+        mov     cx, 64          ; next 64 colors
         mov     bl, 0
-Lp3:    mov     al, 0
+Lp3:    mov     al, 0           ; r = 0
         stosb
-        mov     al, bl
+        mov     al, bl          ; g = counter
         stosb
-        mov     al, 0
+        mov     al, 0           ; b = 0
         stosb
         inc     bl
         loop    Lp3
-        mov     cx, 64
+        mov     cx, 64          ; next 64 colors
         mov     bl, 0
-Lp4:    mov     al, bl
+Lp4:    mov     al, bl          ; r = counter
         stosb
-        mov     al, bl
+        mov     al, bl          ; g = counter
         stosb
-        mov     al, 0
+        mov     al, 0           ; b = 0
         stosb
         inc     bl
         loop    Lp4
-        mov     cx, 64
+        mov     cx, 64          ; next 64 colors
         mov     bl, 0
-Lp5:    mov     al, bl
+Lp5:    mov     al, bl          ; r = counter
         stosb
-        mov     al, 0
+        mov     al, 0           ; g = 0
         stosb
-        mov     al, bl
+        mov     al, bl          ; b = counter
         stosb
         inc     bl
         loop    Lp5
 
-        mov     al, 0
-        mov     ah, 0
-        mov     cl, 24
+        mov     al, 0           ; first color
+        mov     ah, 0           ; all 256 colors
+        mov     cl, 24          ; unpacked format
         mov     dx, palette_rgb_8
         call    VXSetPalette
 
@@ -209,49 +213,61 @@ VXSetPalette:
         push    di
         push    bp
 
+        ; analyze format and set up it's decoder func
         cmp     cl, 18
         jnz     VXSetPal1
-        mov     di, Read6666Color
-        xor     bp, bp
-        mov     ch, 0
+        ; packed format
+        mov     di, Read6666Color ; decoder func
+        xor     bp, bp          ; bit buffer
+        mov     ch, 0           ; number of bits in buffer
         jmp     VXSetPalRun
 VXSetPal1:
         cmp     cl, 24
         jnz     VXSetPal2
-        mov     di, Read888Color
+        ; unpacked format
+        mov     di, Read888Color ; decoder func
+        ; no registers used by decoder
         jmp     VXSetPalRun
 VXSetPal2:
         cmp     cl, 32
         jnz     VXSetPalExit
-        mov     di, Read8888Color
+        ; BMP format
+        mov     di, Read8888Color ; decoder func
+        ; no registers used by decoder
 
 VXSetPalRun:
-        mov     bl, ah
+        mov     bl, ah          ; number of colors
         mov     bh, 0
         test    bx, bx
         jnz     VXSetPal3
-        mov     bx, 100h
+        mov     bx, 100h        ; 0 means 256 colors
 VXSetPal3:
         mov     si, dx
         cld
 
-        cli
+        cli                     ; interrupts off
         mov     dx, VGA_DAC_WRITE
-        out     dx, al
+        out     dx, al          ; write first color to DAC
         mov     dx, VGA_DAC_DATA
 VXSetPalLp:
-        push    bx
+        push    bx              ; save counter
+        ; call decoder function
+        ; it should read bytes from input stream, parse one color entry and
+        ; return:
+        ;   al = r
+        ;   bl = g
+        ;   bh = b
         call    di
-        out     dx, al
+        out     dx, al          ; write r
         mov     al, bl
-        out     dx, al
+        out     dx, al          ; write g
         mov     al, bh
-        out     dx, al
-        pop     bx
+        out     dx, al          ; write b
+        pop     bx              ; restore counter
 
-        dec     bx
+        dec     bx              ; counter--
         jnz     VXSetPalLp
-        sti
+        sti                     ; interrupts on
 
 VXSetPalExit:
         pop     bp
@@ -265,57 +281,69 @@ VXSetPalExit:
         ret
 
 Read6666Color:
+        ; decode packed format
+        ; read from bit buffer three 6-bit values
         call    Read6666ColNeed6Bits
         call    Read6666ColGet6Bits
-        mov     bh, al
+        mov     bh, al          ; bh = r (temp)
         call    Read6666ColNeed6Bits
         call    Read6666ColGet6Bits
-        mov     bl, al
+        mov     bl, al          ; bl = g
         call    Read6666ColNeed6Bits
         call    Read6666ColGet6Bits
-        xchg    bh, al
+        xchg    bh, al          ; al = r, bh = b
         ret
 
 Read6666ColNeed6Bits:
-        cmp     ch, 6
+        ; ensure that bit buffer contains at least 6 bits ready to read
+        ; read more data from input stream to the buffer if needed
+        cmp     ch, 6           ; are there at least 6 bits?
         jae     Read6666ColNeed6BitsExit
-        mov     ah, 0
-        lodsb
+        mov     ah, 0           ; no, we need more data
+        lodsb                   ; load new byte to AX (00000000 dddddddd)
         mov     cl, 8
-        sub     cl, ch
-        shl     ax, cl
-        or      bp, ax
-        add     ch, 8
+        sub     cl, ch          ; 8-CH = number of free bits in high byte
+                                ; Example:
+                                ;   BP = xx000000 00000000
+                                ;   CH = used = 2, CL = free = 6
+        shl     ax, cl          ; AX = 00dddddd dd000000
+        or      bp, ax          ; bit buffer = BP = xxdddddd dd000000
+        add     ch, 8           ; bits += 8
 Read6666ColNeed6BitsExit:
         ret
 
 Read6666ColGet6Bits:
-        mov     ax, bp
+        ; get 6 bits from bit buffer to AL
+        mov     ax, bp          ; AX = bit buffer = ddddddxx xxxxxxxx
         mov     cl, 6
-        shl     bp, cl
-        sub     ch, cl
-        rol     ax, cl
-        and     al, 00111111b
+        shl     bp, cl          ; remove 6 bits from buffer
+        sub     ch, cl          ; bits -= 6
+        rol     ax, cl          ; xxxxxxxx xxdddddd
+        and     al, 00111111b   ; 00dddddd
         ret
 
 Read888Color:
-        lodsw
-        mov     bl, ah
-        mov     bh, al
-        lodsb
-        xchg    bh, al
+        ; decode unpacked format
+        ; just read 3 bytes
+        lodsw                   ; g r
+        mov     bl, ah          ; bl = g
+        mov     bh, al          ; bh = r (temp)
+        lodsb                   ; b
+        xchg    bh, al          ; al = r, bh = b
         ret
 
 Read8888Color:
-        lodsw           ; gb
+        ; decode BMP format
+        ; read 3 bytes and skip 4th. BGRA!, not rgba
+        lodsw                   ; g b
         mov     cl, 2
-        shr     ah, cl
+        shr     ah, cl          ; 8 bit value to 6 bit
         shr     al, cl
-        mov     bl, ah
-        mov     bh, al
-        lodsb           ; r
-        shr     al, cl
-        inc     si      ; a
+        mov     bl, ah          ; g
+        mov     bh, al          ; b
+        lodsb
+        shr     al, cl          ; r
+        inc     si              ; skip alpha
         ret
 
 ; Set one color of the palette
