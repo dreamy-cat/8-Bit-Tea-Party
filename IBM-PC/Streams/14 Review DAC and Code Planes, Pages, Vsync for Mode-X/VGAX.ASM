@@ -24,18 +24,20 @@ VGA_INPUT_STATUS_1      EQU 3DAh        ;Input status register 1, using VSync.
 
 ;Sequencer registers.
 
-VGA_SEQ_ADDR            EQU 3C4h        ;out dx,ax 16-bit port output.
-VGA_SEQ_DATA            EQU 3C5h        ;
+VGA_SEQUENCER_ADDR      EQU 3C4h        ;out dx,ax 16-bit port output.
+VGA_SEQUENCER_DATA      EQU 3C5h        ;
 
 ;CRT controller register.
 
 VGA_CRT_ADDR            EQU 3D4h        ;Or 3B4 for MDA, using bit selector.
 VGA_CRT_DATA            EQU 3D5h
+VGA_START_HIGH_ADDR     EQU 00Ch        ;High 8-bit of address regen. buffer.
+VGA_START_LOW_ADDR      EQU 00Dh        ;Low 8-bit of address regen. buffer.
 
 ;Graphics controller registers.
 
-VGA_GRAPH_ADDR          EQU 3CEh
-VGA_GRAPH_DATA          EQU 3CFh
+VGA_GRAPHICS_ADDR       EQU 3CEh
+VGA_GRAPHICS_DATA       EQU 3CFh
 
 ;Video DAC palette registers.
 
@@ -54,10 +56,15 @@ VGA_PLANES_MASK         EQU 00001111b   ;Маска для всех планов VGA.
 ;Используем глобальные настройки экрана на сейчас, позже возможна структура.
 
 SCR_GFX_ADDR            EQU 0A000h      ;Сегментный адрес графического экрана.
+SCR_GFX_SIZE_BYTES      EQU 000012C00h  ;Размер экрана в байтах, 76800.
+SCR_GFX_SIZE_PAR        EQU 012C0h      ;Размер экрана в параграфах(16), 4800.
 SCR_GFX_PLANE_SIZE      EQU 04B00h      ;Размер Х-плана в байтах, 19200.
+SCR_GFX_ALL_PAGES       EQU 003h        ;Всего страниц в режиме Х.
+SCR_GFX_PAGE_0_OFFS     EQU 00000h      ;Смещение нулевой страницы.
+SCR_GFX_PAGE_1_OFFS     EQU 04B00h      ;Первая страницы для режима 320*240.
+SCR_GFX_PAGE_2_OFFS     EQU 09600h      ;Вторая страница для режима 320*240.
 SCR_GFX_WIDTH           EQU 0140h       ;320 точек по ширине.
 SCR_GFX_HEIGHT          EQU 00F0h       ;240 точек по высоте.
-SCR_GFX_COLORS          EQU 0100h       ;256 цветов по таблице.
-SCR_GFX_BPP             EQU 08h         ;Количество бит на точку.
-SCR_GFX_BPC             EQU 06h         ;Количество бит на компонент цвета.
-SCR_GFX_WIDTH_BYTES     EQU SCR_GFX_WIDTH / 4 ; Количество байтов в строке
+SCR_GFX_COLORS          EQU 00100h      ;256 цветов по таблице.
+SCR_GFX_BPP             EQU 008h        ;Количество бит на точку.
+SCR_GFX_BPC             EQU 006h        ;Количество бит на компонент цвета.
