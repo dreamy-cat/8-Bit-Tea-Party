@@ -1,12 +1,14 @@
-;8-Bit Tea Party!
+;8-Bit Tea Party! 2021.
 ;Licinse: Creative Commons.
+;Platform: 8086/87, VGA(256Kb), DOS.
+;Tools: NASM.
+;Author: Daniil Peroff.
 
-; Example for VXPutPixel function
+; Example for VXSetPixel function
 
-%include "vgax.asm"
+%include "VGA-X.ASM"
 
         org 100h
-
         pushf
 
         call    SetModeX
@@ -60,5 +62,5 @@ Lp5:    call    VXPutPixel
         popf
         ret
 
-%include "vgax_lib.asm"
-%include "vx_pixel.asm"
+%include "VX_SYS.ASM"
+%include "VX_PIXEL.ASM"

@@ -9,6 +9,10 @@
 ;Не определяем переменные, данные или код, которые имеют не нулевой размер.
 ;Подробнее о ригистрах, индексах и данных можно посмотреть в документации.
 
+;VGA library for Mode-X, 320*240*256 colours with pixel's planes.
+;Warning! Using library on real hardware is not recommended and can damage
+;your monitor/adapter. Tested only in DOSBox. :)
+
 ;VGA video memory layout. ISA 16 bit data bus, 256Kb model.
 ;4 maps(0..3), 64Kb each, total 256Kb(standard).
 ;Config: 64Kb from 0xA000 address, 4 planes.
@@ -64,6 +68,9 @@ GFX_PLANE_SIZE_B        EQU 04B00h      ;Размер Х-плана в байтах, 19200.
 GFX_PLANE_SIZE_W        EQU 02580h      ;Размер Х-плана в словах, 9600.
 GFX_PLANE_SIZE_P        EQU 004B0h      ;Размер Х-плана в параграфах, 1200.
 GFX_ALL_PAGES           EQU 003h        ;Всего страниц в режиме Х.
+GFX_PAGE_SIZE_B         EQU 04B00h      ;Размер страницы в байтах, 19200.
+GFX_PAGE_SIZE_W         EQU 02580h      ;Размер страницы в словах, 9600.
+GFX_PAGE_SIZE_P         EQU 004B0h      ;Размер страницы в параграфах, 1200.
 GFX_PAGE_0_OFFS         EQU 00000h      ;Смещение нулевой страницы.
 GFX_PAGE_1_OFFS         EQU 04B00h      ;Первая страницы для режима 320*240.
 GFX_PAGE_2_OFFS         EQU 09600h      ;Вторая страница для режима 320*240.

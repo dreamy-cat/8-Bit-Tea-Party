@@ -1,18 +1,18 @@
-;8-Bit Tea Party!
-;License: (CC) Creative Commons.
+;8-Bit Tea Party! 2021.
+;License: Creative Commons.
+;Platform: 8086/87, VGA(256kb), DOS.
+;Tools: NASM(2.15.05).
+;Authors: Alexander Serov.
 
-;VGA library for Mode-X, 320*240*256 colours with pixel's planes.
-;Warning! Using library on real hardware is not recommended and can damage
-;your monitor/adapter. Tested only in DOSBox. :) Other modes - may be later.
-
-;Procedures in one file, but may be later be on separate files.
+;System procedures for VGA Mode-X, hardware level ports.
+;See documentation: IBM VGA XGA Technical Reference, 1992.
 
 ;File with all parameters to CRT Controller of VGA adapter.
 ;Using to setup Mode-X, 320 horizontal, 240 vertical, 256 colours.
 ;Format: PORT 0x3C2...
 ;INDEX register VGA, first DB, see doc for VGA.
 ;DATA, use AX register and OUT DX,AX command.
-;Tweaker by Robert Schmidt(links later).
+;Tweaker by Robert Schmidt.
 
 ;Файл со всеми параметрами для контроллера электронно-лучевой трубки, при
 ;настройке режима Х, адаптера VGA, размеры 320*200 точек и 256 цветов.
@@ -21,73 +21,81 @@
 ;Данные - параметр для записи в порт.
 ;Удобней всего использовать AX аккумулятор и команду OUT DX,AX.
 
-;
-;
-;
-;
-;
-
-;General registers.
-
-VGA_MISC_WRITE   EQU 3C2h
-VGA_MISC_READ    EQU 3CCh
-
-;Sequencer registers.
-
-VGA_SEQ_ADDR    EQU 3C4h        ;out dx,ax 16-bit port output.
-VGA_SEQ_DATA    EQU 3C5h
-
-;CRT controller register.
-
-VGA_CRT_ADDR    EQU 3D4h        ;Or 3B4 for MDA, using bit selector.
-VGA_CRT_DATA    EQU 3D5h
-
-;Graphics controller registers.
-
-VGA_GRAPH_ADDR  EQU 3CEh
-VGA_GRAPH_DATA  EQU 3CFh
-
-;Video DAC palette registers.
-
-VGA_DAC_WRITE   EQU 3C8h
-VGA_DAC_READ    EQU 3C7h
-VGA_DAC_DATA    EQU 3C9h
-VGA_PEL_MASK    EQU 3C6h
-
 ;VGA video memory layout. ISA 16 bit data bus, 256Kb model.
 ;4 maps(0..3), 64Kb each, total 256Kb(standard).
 ;Config: 64Kb from 0xA000 address, 32Kb from B000 or B800(other adapters).
 ;Planes: 4 bits for every pixel in every plane.
 ;Blue-Green-Red-Intensity, 16 colours.
 
-SetModeX:               ;320*240*256 colours.
-        pushf           ;Save all registers in procedure.
+;List of procedures in alphabetical order, without prefix 'VX'.
+
+;DisplayPage            Set video page to display from 0 to 2.
+;SetModeX               Setup Mode-X, 320x240 pixels and 256 colors.
+;SetPlanes              Set plane mask to write 8 bit color, bits from 0 to 3.
+;WaitVSync              Await vertical synchronization signal from CRT.
+
+%include "VGA-X.ASM"    ;NASM directive.
+
+;Procedure set display page, al - 0..2 - page index;(see doc)
+
+VXDisplayPage:
+        pushf
+        push ax
+        push dx
+        cmp al,GFX_ALL_PAGES
+        jnc short DispPg0
+        xor ah,ah
+        mov dx,GFX_PAGE_SIZE_B
+        mul dx                          ;AH High 8-bit of 16bit screen offs.
+        mov dx,VGA_CRT_ADDR
+        mov al,VGA_START_HIGH_ADDR
+        out dx,ax
+DispPg0:pop dx
+        pop ax
+        popf
+        ret
+
+; Установка видео-режима 'Mode-Х', разрешением 320 240 точек и 256 цветов по таблице.
+;Краткая версия процедуры, в основе вещания и книги М.Абраша.
+;Меняются только те параметры, которые необходимы, остальное подтягивается
+;с использованием стандартного режима 13h. Используем пока этот вариант, но
+;возможны некоторые неявные моменты, поэтому быть внимательным при оталадке.
+;Входны данные: используются глобальные константы параметров экрана.
+;Выход: установленный видео режим X 320*240*256.
+
+VXSetModeX:
+        pushf
+        push ax
+        push cx
+        push dx
+        push si
+
+;Установим стандартный режим 13H и будем модифицировать только необходимое.
 
         mov ax,13h
         int 10h
 
-;Разбить пиксильные планы по отдельности, снова 0..3.
-;Memory mode register 04h, page 2-53.
+;Разбить пиксильные планы по отдельности, снова 0..3, регистр 04, док. 2-53.
 
-        mov dx,VGA_SEQ_ADDR
+        mov dx,VGA_SEQUENCER_ADDR
         mov ah,00000110b        ;Using all planes and extended to 256Kb mem.
         mov al,04h
         out dx,ax
 
-;Выберем 480 линий и селектор порта для Трубки, стр. 2-43.
+;Выберем 480 линий и селектор порта для ЭЛТ, док. 2-43.
 
         mov dx,VGA_MISC_WRITE
         mov al,11100011b        ;480lines, 640/320pix, ram and 3DA - port.
         out dx,al               ;8 bit output.
 
-;Сброс или рестарт секвенсер.
+;Сброс или рестарт секвенсера, необязательно, но лучше подстарховаться.
 
-        mov dx,VGA_SEQ_ADDR
+        mov dx,VGA_SEQUENCER_ADDR
         mov al,00h              ;Reset register.
         mov ah,00000011b        ;Reset sync and async.
         out dx,ax
 
-;Снимем защиту от записи в регситры с индексами 0-7.
+;Снимем защиту от записи в регситры с индексами 0-7, док.
 
         mov dx,VGA_CRT_ADDR
         mov al,11h              ;Vertical retrace end, register.
@@ -108,97 +116,14 @@ SetMX1: lodsw                   ;Load parameter in table.
         out dx,ax
         loop SetMX1
 
-;Включим заполнение всех плоскостей.
-
-        mov dx,VGA_SEQ_ADDR
-        mov al,02h              ;Map mask register.
-        mov ah,00001111b        ;All planes, faster 4pixel for byte.
-        out dx,ax
-
-        popf
-        ret
-
-;Простое тестирование экрана, заполняем все плоскости палитрой CGA.
-
-        mov ax,SCR_GFX_ADDR
-        mov es,ax
-        xor di,di
-        mov ax,0000h
-        mov cx,2580h
-        cld
-t1:     stosw
-        inc al
-        inc ah
-        and al,00001111b                ;CGA 16 colors, 0..15.
-        and ah,00001111b
-        loop t1
-
-        mov ah,00h                      ;Press any key.
-        int 16h
-
-        popf
-        ret
-
-;Procedure set display page, al - 0..2 - page index;(see doc)
-
-VXDisplayPage:
-        pushf
-        push ax
-        push dx
-        cmp al,SCR_GFX_ALL_PAGES
-        jnc short DispPg0
-        xor ah,ah
-        mov dx,SCR_GFX_PLANE_SIZE
-        mul dx                          ;AH High 8-bit of 16bit screen offs.
-        mov dx,VGA_CRT_ADDR
-        mov al,VGA_START_HIGH_ADDR
-        out dx,ax
-DispPg0:pop dx
-        pop ax
-        popf
-        ret
-
-;Procedure wait for vertical Sync, VGA.
-
-VXWaitVSync:
-        pushf
-        push ax
-        push dx
-        mov dx,VGA_INPUT_STATUS_1
-WaitV1: in al,dx                 ;if we in vsync signal. (Abrash)
-        and al,00001000b         ;for DAC read.
-        jnz short WaitV1
-WaitV2: in al,dx
-        and al,00001000b
-        jz short WaitV2
+        pop si
         pop dx
-        pop ax
-        popf
-        ret
-
-;Set planes for write in VGA X-MODE.
-;al - bits 0..3 if set, then ready to write.
-
-VXSetPlanes:
-        pushf
-        push ax
-        push dx
-        mov dx,VGA_SEQUENCER_ADDR
-        xchg ah,al
-        and ah,00001111b                ;Mask for 4 planes.
-        mov al,02h
-        out dx,ax                       ;16 bit out.
-        pop dx
+        pop cx
         pop ax
         popf
         ret
 
 ;Table for VGA adapter parameters.
-
-;1. Использовать данные с примера, рискованное дело. ;)
-;2. Импортировать все данные из программы настройка.
-;3. Считать все значение из портов и их модифицировать.
-;4. Смотрим в документацию, частично есть таблицы в конце документации.
 
 vga_crt_mode_x:         ;[bits]
 
@@ -254,60 +179,157 @@ vga_crt_mode_x:         ;[bits]
                         ;1 - bit 13 address counter as source, 0 row count;
                         ;CGA 640x200 pixels, example.
 
-mode_320_240_data:         ;All values for ports
+;Set planes for write in VGA X-MODE.
+;al - bits 0..3 if set, then ready to write.
 
-;0x3C2
-        db 00h
-        db 0E3h
-;0x3d4
-        db 00h
-        db 5Fh
-        db 01h
-        db 4Fh
-        db 02h
-        db 50h
-        db 03h
-        db 82h
-        db 04h
-        db 54h
-        db 05h
-        db 80h
-        db 06h
-        db 0Dh
-        db 07h
-        db 3Eh
-        db 08h
-        db 00h
-        db 09h
-        db 41h
-        db 10h
-        db 0EAh
-        db 11h
-        db 0ACh
-        db 12h
-        db 0DFh
-        db 13h
-        db 28h
-        db 14h
-        db 00h
-        db 15h
-        db 0E7h
-        db 16h
-        db 06h
-        db 17h
-        db 0E3h
-;0x3C4
-        db 01h
-        db 01h
-        db 04h
-        db 06h
-;0x3CE
-        db 05h
-        db 40h
-        db 06h
-        db 05h
-;0x3C0
-        db 10h
-        db 41h
-        db 13h
-        db 00h
+VXSetPlanes:
+        pushf
+        push ax
+        push dx
+        mov dx,VGA_SEQUENCER_ADDR
+        xchg ah,al
+        and ah,00001111b                ;Mask for 4 planes.
+        mov al,02h
+        out dx,ax                       ;16 bit out.
+        pop dx
+        pop ax
+        popf
+        ret
+
+;Procedure wait for vertical Sync, VGA.
+
+VXWaitVSync:
+        pushf
+        push ax
+        push dx
+        mov dx,VGA_INPUT_STATUS_1
+WaitV1: in al,dx                 ;if we in vsync signal. (Abrash)
+        and al,00001000b         ;for DAC read.
+        jnz short WaitV1
+WaitV2: in al,dx
+        and al,00001000b
+        jz short WaitV2
+        pop dx
+        pop ax
+        popf
+        ret
+
+
+;Процедура установки режима Х, с учетом всех параметров адаптера, которые
+;требуются для установки. Правильность работы пока под вопросом, используем
+;более краткий вариант VXSetModeX процедуру, но это оставляем для теста
+;железа и в идеале после использовать именно её, чтобы не было проблем с
+;разными конфигурациями адаптеров.
+
+VXSetModeXFull:
+        pushf
+        push ax
+        push cx
+        push dx
+        push si
+        push di
+
+        mov ax,13h                      ;Set anyway, may be because palette.
+        int 10h
+
+        lea di,data_x_ports
+        mov dx,[di]                     ;1 data byte.
+        lea si,data_x_misc
+        mov ax,ds:[si+1]
+        out dx,al
+        add si,02h
+        add di,02h
+
+        mov dx,VGA_CRT_ADDR
+        mov al,11h                      ;Vertical retrace end, register.
+        out dx,al
+        inc dx
+        in al,dx                        ;Input from port current value.
+        and al,01111111b                ;Remove protection
+        out dx,al
+
+        mov dx,[di]
+        mov cx,12h                      ;18 registers.
+t2:     mov ax,[si]
+        out dx,ax
+        inc si
+        inc si
+        loop t2
+
+        add di,02h
+        mov dx,[di]                     ;3C4.
+        mov cx,02h
+t3:     mov ax,[si]
+        out dx,ax
+        inc si
+        inc si
+        loop t3
+
+        add di,02h
+        mov dx,[di]                     ;3CE
+        mov cx,02h
+t4:     mov ax,[si]
+        out dx,ax
+        inc si
+        inc si
+        loop t4
+
+        add di,02h
+        mov dx,[di]                     ;3C0
+        mov cx,02h                      ;Every byte to port.
+t5:     mov ax,[si]
+        or al,20h
+        out dx,al
+        mov al,ah
+        out dx,al
+        inc si
+        inc si
+        loop t5
+
+        pop di
+        pop si
+        pop dx
+        pop cx
+        pop ax
+        popf
+        ret
+
+mode_x_data:    ;All values for VGA ports.
+
+;I/O Ports.
+data_x_ports:   dw 03C2h, 03D4h, 03C4h, 03CEh, 03C0h
+
+;03C2           Miscellaneous:Input Status Register 0.
+data_x_misc:    db 00h, 0E3h
+
+;03D4           CRT Controller Registers.
+data_x_crt:     db 00h, 5Fh
+                db 01h, 4Fh
+                db 02h, 50h
+                db 03h, 82h
+                db 04h, 54h
+                db 05h, 80h
+                db 06h, 0Dh
+                db 07h, 3Eh
+                db 08h, 00h
+                db 09h, 41h
+                db 10h, 0EAh
+                db 11h, 0ACh
+                db 12h, 0DFh
+                db 13h, 28h
+                db 14h, 00h
+                db 15h, 0E7h
+                db 16h, 06h
+                db 17h, 0E3h
+
+;03C4           Sequencer Registers.
+data_x_seq:     db 01h, 01h             ;01 - or zero.
+                db 04h, 06h
+
+;03CE           Graphics Controller Registers.
+data_x_graph:   db 05h, 40h
+                db 06h, 05h
+
+;03C0           Attribute Controller Registers.
+data_x_attrib:  db 10h, 41h
+                db 13h, 00h

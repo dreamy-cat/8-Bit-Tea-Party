@@ -1,9 +1,12 @@
 ;8-Bit Tea Party! 2021.
 ;License: Creative Commons.
+;Platform: 8086/87, VGA(256Kb), DOS.
+;Tools: NASM.
+;Author: Daniil Peroff.
 
 CPU 8086
 
-%include "vgax.asm"
+%include "VGA-X.ASM"            ;NASM.
 
 ; Draw a pixel to coordinates X and Y with color ‘ to active page, in Mode-X.
 ;Using VGA-X constants for screen parameters. Check for data correctnes.
@@ -28,9 +31,9 @@ CPU 8086
 VXSetPixel:
         pushf
         ; checks
-        cmp     bx, SCR_GFX_WIDTH
+        cmp     bx, GFX_WIDTH
         jae     VXPutPixelExit
-        cmp     cl, SCR_GFX_HEIGHT
+        cmp     cl, GFX_HEIGHT
         jae     VXPutPixelExit
 
         push    bx
@@ -44,13 +47,13 @@ VXSetPixel:
         mov     ah, 1
         shl     ah, cl          ; ah = plane mask = 1 << (X & 3)
         mov     cx, dx          ; restore cx
-        mov     dx, VGA_SEQ_ADDR
+        mov     dx, VGA_SEQUENCER_ADDR
         mov     al, 02h         ; mask register addr
         out     dx, ax
 
         ; calc byte address
         mov     al, cl          ; Y
-        mov     dl, SCR_GFX_WIDTH_BYTES
+        mov     dl, GFX_BYTES_PER_LINE
         mul     dl
         shr     bx, 1           ; faster than shr bx,cl and cannot use cl
         shr     bx, 1           ; X / 4

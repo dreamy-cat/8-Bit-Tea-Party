@@ -1,6 +1,6 @@
 ;8-Bit Tea Party! 2021.
 ;License: Creative Commons.
-;Platform: CPU 8086\87, GPU VGA, REAL MODE, DOS.
+;Platform: 8086/87, VGA(256Kb), DOS.
 ;Tools: NASM.
 ;Author: Dmitry Galashin.
 
@@ -10,20 +10,21 @@ CPU 8086
 
 %include "vga-x.asm"
 
-	org 100h
-	pushf
-	;call near VXSetModeX
+        org 100h
+        pushf
+        ;call near VXSetModeX
+        ;mov al,00001111b
+        ;call near VXSetPlanes
 
-	mov ah,00h		;Press any key.
-	int 16h
-
-	popf
-	ret
+        mov ah,00h              ;Press any key.
+        int 16h
+        popf
+        ret
 
 ;Процедура очистки экрана в режиме Х.
 ;Вход:
-;AL	index color to fill;
-;AH	index of page(0..2);
+;AL     index color to fill;
+;AH     index of page(0..2);
 ;Output: videobuffer.
 
 VXClearScreen:
@@ -31,3 +32,5 @@ VXClearScreen:
 
         popf
         ret
+
+%include "vx_sys.asm"
