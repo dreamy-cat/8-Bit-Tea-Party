@@ -1,5 +1,5 @@
 ;8-Bit Tea Party! 2021.
-;Licinse: Creative Commons.
+;License: Creative Commons.
 ;Platform: 8086/87, VGA(256Kb), DOS.
 ;Tools: NASM.
 ;Author: Dmitry Galashin.
