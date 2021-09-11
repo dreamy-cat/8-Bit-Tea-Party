@@ -6,17 +6,7 @@
 
 CPU 8086                                ;Поменять дриективы, если другой асм.
 
-;Используем пока константы, которые здесь и после их перенесем в глобальный
-;файл имен либо в заголовок библиотеки режима Х.
-
-SCR_GFX_ADDR            EQU 0A000H      ;Сегментный адрес графического экрана.
-
-;Video DAC palette registers.
-
-VGA_DAC_WRITE           EQU 3C8h
-VGA_DAC_READ            EQU 3C7h
-VGA_DAC_DATA            EQU 3C9h
-VGA_PEL_MASK            EQU 3C6h
+%include "vga-x.asm"
 
         org 100h
 
@@ -27,7 +17,7 @@ VGA_PEL_MASK            EQU 3C6h
         ; fill packed 6-6-6-6 palette
         mov     di, palette_rgb_6
         xor     ax, ax          ; bit buffer for output stream
-        xor     cx, cx          ; ch = number of bits in buffer
+        mov     ch, 0           ; ch = number of bits in buffer
                                 ; Example:
                                 ;   AX = rrrrrr00 00000000
                                 ;   CH = 6
@@ -36,8 +26,20 @@ VGA_PEL_MASK            EQU 3C6h
         mov     bl, 0           ; current R
         mov     bh, 0           ; current G
         mov     dl, 0           ; current B
+
 Lp1:
+        mov     dh, 0           ; component index: 0 = R, 1 = G, 2 = B
+CompLp:
+        cmp     dh, 0
+        jnz     CheckG
         mov     al, bl          ; add R to bit buffer: xxxx???? 00rrrrrr
+        jmp     near AddToBuf
+CheckG: cmp     dh, 1
+        jnz     SetB
+        mov     al, bh          ; add G to bit buffer: xxxx???? 00gggggg
+        jmp     near AddToBuf
+SetB:   mov     al, dl          ; add B to bit buffer: xxxx???? 00bbbbbb
+AddToBuf:
         mov     cl, 2
         shl     al, cl          ; move to left byte side: xxxx???? rrrrrr00
         mov     cl, 8
@@ -50,80 +52,53 @@ Lp1:
         jb      Lbl1
         mov     [di], ah        ; yes, write it to the palette
         inc     di
-        mov     cl, 8
-        shl     ax, cl          ; remove from buffer
-        sub     ch, cl          ; bits -= 8
+        mov     ah, al          ; remove byte from buffer: rr000000 00000000
+        sub     ch, 8           ; bits -= 8
 
-Lbl1:   mov     al, bh          ; add G to bit buffer
-        mov     cl, 2
-        shl     al, cl
-        mov     cl, 8
-        sub     cl, ch
-        shr     ah, cl
-        shl     ax, cl
-        add     ch, 6
-        cmp     ch, 8
-        jb      Lbl2
-        mov     [di], ah
-        inc     di
-        mov     cl, 8
-        shl     ax, cl
-        sub     ch, cl
+Lbl1:   inc     dh              ; next color component
+        cmp     dh, 3
+        jb      CompLp
 
-Lbl2:   mov     al, dl          ; add B to bit buffer
-        mov     cl, 2
-        shl     al, cl
-        mov     cl, 8
-        sub     cl, ch
-        shr     ah, cl
-        shl     ax, cl
-        add     ch, 6
-        cmp     ch, 8
-        jb      Lbl3
-        mov     [di], ah
-        inc     di
-        mov     cl, 8
-        shl     ax, cl
-        sub     ch, cl
-
-Lbl3:   mov     bp, si
-        and     bp, 11000000b   ; bp = number of quarter of palette
-
-        cmp     bp, 11000000b   ; red - only in 1st part
-        jnz     Lbl4
+Lbl3:   cmp     si, 100h/4*3    ; red - only in 1st part
+        jbe     Lbl4
         inc     bl              ; r++
         and     bl, 00111111b
-Lbl4:
-        cmp     bp, 10000000b   ; green - in 2nd and 4th parts
-        jnz     Lbl5
+
+Lbl4:   cmp     si, 100h/4*1    ; green - in 2nd and 4th parts
+        ja      Lbl5
         inc     bh              ; g++
         and     bh, 00111111b
-Lbl5:   cmp     bp, 00000000b
-        jnz     Lbl6
+        jmp     near Lbl6
+Lbl5:   cmp     si, 100h/4*3
+        ja      Lbl6
+        cmp     si, 100h/4*2
+        jbe     Lbl6
         inc     bh              ; g++
         and     bh, 00111111b
-Lbl6:
-        cmp     bp, 01000000b   ; blue - in 3rd and 4th parts
+
+Lbl6:   cmp     si, 100h/4*2    ; blue - in 3rd and 4th parts
         ja      Lbl7
         inc     dl              ; b++
         and     dl, 00111111b
-Lbl7:
-        dec     si              ; counter--
-        jnz     Lp1
 
+Lbl7:   dec     si              ; counter--
+        jnz     Lp1             ; next color
+
+        ; do set new palette
         mov     al, 0           ; first color
         mov     ah, 0           ; all 256 colors
-        mov     cl, 18          ; packed format
+        mov     cl, 1           ; packed format
         mov     dx, palette_rgb_6
-        call    VXSetPalette
+        call    near VXSetPalette
 
-        call near ColorTableDraw
+        call    near ColorTableDraw
 
         mov ah,00h                      ;Press any key...
         int 16h
 
         ; fill unpacked 8-8-8 palette
         mov     di, palette_rgb_8
+        cld
         mov     cx, 64          ; first 64 colors
         mov     bl, 0
 Lp2:    mov     al, bl          ; r = counter
@@ -165,13 +140,14 @@ Lp5:    mov     al, bl          ; r = counter
         inc     bl
         loop    Lp5
 
+        ; do set new palette
         mov     al, 0           ; first color
         mov     ah, 0           ; all 256 colors
-        mov     cl, 24          ; unpacked format
+        mov     cl, 2           ; unpacked format
         mov     dx, palette_rgb_8
-        call    VXSetPalette
+        call    near VXSetPalette
 
-        call near ColorTableDraw
+        call    near ColorTableDraw
 
         mov     ah, 0
         int     16h
@@ -183,26 +159,17 @@ Lp5:    mov     al, bl          ; r = counter
 palette_rgb_8   db 100h * 03h dup (0)   ;24бит * 256 цветов = 768 байт.
 palette_rgb_6   db 240h dup (0)         ;18бит * 256 цветов = 576 байт.
 
-;Процедура установки цветовой палитры для адаптера VGA, режим Х, 256 цветов).
-; Для первой тренировки можно использовать стандартный формат RGB(8 бит), т.е.
-;на каждый компонент по одному байту в массиве 256*3=768 байт. Если всё
-;нормально заработало, то уже можно попробовать реалзовать максимально
-;упакованный формат: 3байта(24 бита) упакованы по 6бит потоком RGBR, где
-;последние 6бит уже являются компонентом следующего цвета и также, со
-;смещением уже идут следущие цвета палитры.
-; Функции вызова БИОС-а не использовать, напрямую работаем с железом и не
-;забывать про прерывания. Комментарии приветствуются. :)
+; Set VGA palette
 ;
-;Входные параметры:
-;AL     индекс первого цвета для установки в таблице, 0..255;
-;AH     количество цветов для установки(0..255, если 0, то полностью, 256);
-;CL     количество битов на один цвет в палитре. Возможные значения:
-;         18 - упакованный формат RGBR (6-6-6-6)
-;         24 - распакованный формат RGB (8-8-8)
-;         32 - формат BMP файла, BGRA (8-8-8-8)
-;DS:DX  адрес таблицы компонентов цветов, только на чтение, контроль данных
-;       на стороне вызова.
-
+; Input:
+;   AL = first color
+;   AH = count of colors to be set
+;   CL = input data format and reserve:
+;     bit 0: packed format RGBR (6-6-6-6)
+;         1: unpacked format RGB (8-8-8)
+;         2: BMP file format, BGRA (8-8-8-8)
+;         3..7: reserve
+;   DS:DX = color table address
 VXSetPalette:
         pushf
         push    ax
@@ -214,42 +181,41 @@ VXSetPalette:
         push    bp
 
         ; analyze format and set up it's decoder func
-        cmp     cl, 18
-        jnz     VXSetPal1
+        test    cl, 00000001b
+        jz      SetPal1
         ; packed format
-        mov     di, Read6666Color ; decoder func
+        mov     di, ReadPackedClr ; decoder func
         xor     bp, bp          ; bit buffer
         mov     ch, 0           ; number of bits in buffer
-        jmp     VXSetPalRun
-VXSetPal1:
-        cmp     cl, 24
-        jnz     VXSetPal2
+        jmp     near SetPal3
+SetPal1:
+        test    cl, 00000010b
+        jz      SetPal2
         ; unpacked format
-        mov     di, Read888Color ; decoder func
+        mov     di, ReadUnpckdClr ; decoder func
         ; no registers used by decoder
-        jmp     VXSetPalRun
-VXSetPal2:
-        cmp     cl, 32
-        jnz     VXSetPalExit
+        jmp     near SetPal3
+SetPal2:
+        test    cl, 00000100b
+        jz      SetPalExit
         ; BMP format
-        mov     di, Read8888Color ; decoder func
+        mov     di, ReadBMPClr ; decoder func
         ; no registers used by decoder
 
-VXSetPalRun:
+SetPal3:
         mov     bl, ah          ; number of colors
         mov     bh, 0
         test    bx, bx
-        jnz     VXSetPal3
+        jnz     SetPal4
         mov     bx, 100h        ; 0 means 256 colors
-VXSetPal3:
-        mov     si, dx
+SetPal4:
         cld
-
         cli                     ; interrupts off
+        mov     si, dx          ; color table
         mov     dx, VGA_DAC_WRITE
         out     dx, al          ; write first color to DAC
         mov     dx, VGA_DAC_DATA
-VXSetPalLp:
+SetPalLp:
         push    bx              ; save counter
         ; call decoder function
         ; it should read bytes from input stream, parse one color entry and
@@ -266,10 +232,10 @@ VXSetPalLp:
         pop     bx              ; restore counter
 
         dec     bx              ; counter--
-        jnz     VXSetPalLp
+        jnz     SetPalLp
         sti                     ; interrupts on
 
-VXSetPalExit:
+SetPalExit:
         pop     bp
         pop     di
         pop     si
@@ -280,25 +246,16 @@ VXSetPalExit:
         popf
         ret
 
-Read6666Color:
+ReadPackedClr:
         ; decode packed format
         ; read from bit buffer three 6-bit values
-        call    Read6666ColNeed6Bits
-        call    Read6666ColGet6Bits
-        mov     bh, al          ; bh = r (temp)
-        call    Read6666ColNeed6Bits
-        call    Read6666ColGet6Bits
-        mov     bl, al          ; bl = g
-        call    Read6666ColNeed6Bits
-        call    Read6666ColGet6Bits
-        xchg    bh, al          ; al = r, bh = b
-        ret
-
-Read6666ColNeed6Bits:
-        ; ensure that bit buffer contains at least 6 bits ready to read
+        push    dx
+        mov     dl, 0           ; component index: 0 = r, 1 = g, 2 = b
+ReadPackedLp:
+        ; ensure that bit buffer contains at least 6 bits ready to read,
         ; read more data from input stream to the buffer if needed
         cmp     ch, 6           ; are there at least 6 bits?
-        jae     Read6666ColNeed6BitsExit
+        jae     ReadPacked1
         mov     ah, 0           ; no, we need more data
         lodsb                   ; load new byte to AX (00000000 dddddddd)
         mov     cl, 8
@@ -309,10 +266,7 @@ Read6666ColNeed6Bits:
         shl     ax, cl          ; AX = 00dddddd dd000000
         or      bp, ax          ; bit buffer = BP = xxdddddd dd000000
         add     ch, 8           ; bits += 8
-Read6666ColNeed6BitsExit:
-        ret
-
-Read6666ColGet6Bits:
+ReadPacked1:
         ; get 6 bits from bit buffer to AL
         mov     ax, bp          ; AX = bit buffer = ddddddxx xxxxxxxx
         mov     cl, 6
@@ -320,9 +274,27 @@ Read6666ColGet6Bits:
         sub     ch, cl          ; bits -= 6
         rol     ax, cl          ; xxxxxxxx xxdddddd
         and     al, 00111111b   ; 00dddddd
+
+        cmp     dl, 0
+        jnz     ReadPacked2
+        mov     bh, al          ; bh = r (temp)
+        jmp     short ReadPacked4
+ReadPacked2:
+        cmp     dl, 1
+        jnz     ReadPacked3
+        mov     bl, al          ; bl = g
+        jmp     short ReadPacked4
+ReadPacked3:
+        xchg    bh, al          ; al = r, bh = b
+ReadPacked4:
+        inc     dl              ; next color component
+        cmp     dl, 3
+        jb      ReadPackedLp
+
+        pop     dx
         ret
 
-Read888Color:
+ReadUnpckdClr:
         ; decode unpacked format
         ; just read 3 bytes
         lodsw                   ; g r
@@ -332,7 +304,7 @@ Read888Color:
         xchg    bh, al          ; al = r, bh = b
         ret
 
-Read8888Color:
+ReadBMPClr:
         ; decode BMP format
         ; read 3 bytes and skip 4th. BGRA!, not rgba
         lodsw                   ; g b
@@ -408,7 +380,7 @@ ColorTableDraw:
         push si
         push di
         push es
-        mov ax,SCR_GFX_ADDR
+        mov ax,GFX_SCR_ADDR
         mov es,ax                       ;Screen.
         xor di,di                       ;3clk
         ;sub di,di                       ;3clk
