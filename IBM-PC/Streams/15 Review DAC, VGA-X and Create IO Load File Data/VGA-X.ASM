@@ -1,13 +1,9 @@
-;8-Бит Чаепитие! 2021.
-;Лицензия: Creative Commons.
-;Платформа: 8086, VGA(256Kb), BIOS.
-;Инструменты: NASM(2.15.05).
-;Модули: пока это сами имена.
-;Авторы: Александр Серов(funny.dreamy.cat@gmail.com).
-;Быстродействие: примерное количество тактов для каждой процедуры.
-;Память: процед_1 = N, процед_2 занимает М байт.
-;Краткая история изменений:
-;25.09.21, А.С.: Небольшое обновление заголовка, остальное подтянуть.
+;8-Bit Tea Party! 2021.
+;License: Creative Commons.
+;Platform: 8086, VGA(256Kb).
+;Tools: NASM(2.15.05).
+;Authors: Alexander Serov(funny.dreamy.cat@gmail.com);
+;         Danila Peroff.
 
 ;Global names, constants and structures for VGA Mode-X graphics library,
 ;use for all procedures and data in code, no memory allocated.
