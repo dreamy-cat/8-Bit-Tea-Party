@@ -1,19 +1,10 @@
-;8-Бит Чаепитие! 2021.
-;Лицензия: Creative Commons.
-;Платформа: 8086, VGA(256Kb), BIOS.
-;Инструменты: NASM(2.15.05).
-;Модули: VGA-X,...
-;Авторы: Александр Серов(funny.dreamy.cat@gmail.com).
-;Быстродействие: примерное количество тактов для каждой процедуры.
-;Память: процед_1 = N, процед_2 занимает М байт.
-;Краткая история изменений:
-;25.09.21, А.С.:
-;04.09.21, А.С.: Смена видео страниц и синхронизация обратного хода луча:
-;                SetDisplayPage, WaitVSync. Загрузка файла в режиме Х.
-;28.08.21, А.С.: Загрузка файла в видеопамять и настройка палитры через
-;                BIOS, стандартный видеорежим 320x200x256.
-;07.08.21, А.С.: Установка режима Х и простое тестирование видеопамяти.
-;                Первая версия SetModeX и дополнительно SetModeXFull.
+;8-Bit Tea Party! 2021.
+;License: Creative Commons.
+;Platform: 8086, VGA(256kb).
+;Tools: NASM(2.15.05).
+;Authors: Alexander Serov(funny.dreamy.cat@gmail.com).
+;History:
+;04.09.2021, A.S.: Create DisplayPage, WaitVSync and update SetPlanes.
 
 ;System procedures for VGA Mode-X, hardware level ports.
 ;See documentation: IBM VGA XGA Technical Reference, 1992.
@@ -65,8 +56,11 @@
 ;Global data for all VGA-X procedures, using memory.
 ;Глобальные переменные для библиотеки, занимает память, видна глобально.
 
-vx_scr_active   dw 0000h        ;Смещение активной страницы
-vx_scr_display  dw 0000h        ;Смещение отображаемой страницы на экране.
+
+vx_scr_offs     dw 0000h        ;Смещение экрана для отображения страницы.
+
+;vx_scr_active   dw 0000h        ;Смещение активной страницы
+;vx_scr_display  dw 0000h        ;Смещение отображаемой страницы на экране.
 
 ;Procedures in alphabetical order.
 ;Процедуры библиотеки в алфавитном порядке.
@@ -75,45 +69,28 @@ vx_scr_display  dw 0000h        ;Смещение отображаемой страницы на экране.
 
 ;Procedure set display page, al - 0..2 - page index;(see doc)
 ;Процедура установки активной страницы(смещения) в памяти и страницы
-;отображения экрана из памяти. Проверка на допустимость выполняется для
-;активной и отображаемой страницы одновременно.
+;отображения экрана из памяти. Проверка на допустимость выполняется.
 ;Вход:
 ;AL     биты:
-;0..1   номер активной страницы, 0..2;
-;2..3   номер отображаемой страницы, 0..2;
-;4..7   резерв;
-;Выход: установка .
+;0..2   номер активной страницы, 0..2;
+;3..5   номер отображаемой страницы, 0..2;
+;6..7   резерв;
+;Выход: отображение видеопамяти на экране и обновление переменной vx_scr_offs.
 
-VXSetActDispPage:
+VXDisplayPage:
         pushf
         push ax
         push dx
-        mov ah,al                       ;
-        and al,00000011b
         cmp al,GFX_ALL_PAGES
-        jnc short SAcDiP0
-        mov al,ah
-        shr al,1
-        shr al,1
-        cmp al,GFX_ALL_PAGES
-        jnc short SAcDiP0
-        mov al,ah                       ;
+        jnc short DispPg0
         xor ah,ah
-        push ax
-        and al,00000011b
         mov dx,GFX_PAGE_SIZE_B
         mul dx                          ;AH High 8-bit of 16bit screen offs.
-        mov [vx_scr_active],ax          ;Save screen offset to global.
-        pop ax
-        shr al,1
-        shr al,1
-        mov dx,GFX_PAGE_SIZE_B
-        mul dx
-        mov [vx_scr_display],ax
-        mov dx,VGA_CRT_ADDR             ;
+        mov [vx_scr_offs],ax            ;Save screen offset to global.
+        mov dx,VGA_CRT_ADDR
         mov al,VGA_START_HIGH_ADDR
         out dx,ax
-SAcDiP0:pop dx
+DispPg0:pop dx
         pop ax
         popf
         ret

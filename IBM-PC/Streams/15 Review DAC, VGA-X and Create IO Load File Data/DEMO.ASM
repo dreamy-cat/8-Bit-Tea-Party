@@ -34,7 +34,10 @@
 
 CPU 8086        ;8087 as math. coprocessor.
 
+%include "GLOBAL.ASM"
 %include "VGA-X.ASM"
+
+
 
 ;Program start.
 
@@ -100,13 +103,12 @@ SetMD3: stosw
 
         mov ah,00h
         int 16h
-        mov al,04h
-        call near VXSetActDispPage      ;Set second page.
+        mov al,01h
+        call near VXDisplayPage         ;Set second page.
         mov ah,00h
         int 16h
-        mov al,04h
-        add al,04h
-        call near VXSetActDispPage      ;Set third page.
+        mov al,02h
+        call near VXDisplayPage         ;Set third page.
 
         jmp near Dem0
 
@@ -352,7 +354,7 @@ Out1:   call near VXSetPlanes           ;Move all 4 planes.
 
         mov al,00h
         lea si,palettes_rgba
-SDAC1:  call near VXSetActDispPage
+SDAC1:  call near VXDisplayPage
         push ax
         mov ah,00h                      ;Press any key.
         int 16h
@@ -378,9 +380,8 @@ SDAC0:  mov ah,ds:[si+2]
         mov ah,00h                      ;Any key.
         int 16h
         pop ax
-        ;inc al                         ;Next video page.
-        add al,04h
-        cmp al,0Ch
+        inc al                          ;Next video page.
+        cmp al,03h
         jne short SDAC1
 
 LoadBR: push es

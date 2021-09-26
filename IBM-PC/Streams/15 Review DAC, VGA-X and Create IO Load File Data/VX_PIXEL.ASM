@@ -1,15 +1,28 @@
-;8-Бит Чаепитие! 2021.
-;Лицензия: Creative Commons.
-;Платформа: 8086, VGA(256Kb).
-;Инструменты: NASM.
-;Модули: VGA-X, VX_SYS.
-;Авторы: Данила Перов(почта).
-;Быстродействие: примерное количество тактов для каждой процедуры.
-;Память: процед_1 = N, процед_2 занимает М байт.
-;Краткая история изменений:
-;ДД.ММ.ГГ, И.И.: Короткое сообщение что добавлено, удалено или исправлено.
+;8-Bit Tea Party! 2021.
+;License: Creative Commons.
+;Platform: 8086/87, VGA(256Kb).
+;Tools: NASM.
+;Author: Danila Peroff.
 
-%include "VGA-X.ASM"            ;Директива включения заголовка для NASM.
+;Заголовок я дополню и поправлю.
+
+CPU 8086
+
+%include "VGA-X.ASM"            ;NASM.
+
+; Offset in videobuffer for all drawing functions. Determines active video
+; page.
+
+;vx_scr_offs dw 0000h
+
+; Draw a pixel to coordinates X and Y with color С to active page, in Mode-X.
+;Using VGA-X constants for screen parameters. Check for data correctnes.
+;Input:
+;AL     color index from table, 0..255;
+;DX     horizontal coordinate X(left-right), 0..319;
+;CX     vertical coordinate Y(up-down), 0..239;
+;ES     segment of videobuffer
+;Output: videobuffer.
 
 ; Процедура рисования отдельного пикселя по координатам экрана горизонталь X,
 ;вертикаль Y и цвет Z в активную страницу адаптера(относительное смещение)
@@ -19,15 +32,16 @@
 ;AL     индекс цвета в таблице, 0..255;
 ;DX     горизонтальная координата в точках X, 0..319;
 ;CX     вертикальная координата в точках Y, 0..239;
-;Выход: измененный видео буффер, в активной странице.
+;ES     сегмент видеобуфера(возможно что изменим);
+;Выход: измененный видео буффер, в активной странице;
 
 VXSetPixel:
         pushf
         ; checks
         cmp     dx, GFX_WIDTH
-        jae     short SetPix0
+        jae     short SetPixelExit
         cmp     cx, GFX_HEIGHT
-        jae     short SetPix0
+        jae     short SetPixelExit
 
         push    bx
         push    dx
@@ -57,19 +71,17 @@ VXSetPixel:
         mov     es:[bx], al
         pop     dx
         pop     bx
-SetPix0:popf
+SetPixelExit:
+        popf
         ret
-
-;Повторить формально описание и пару слов, чем именно эта процедура
-;отличается.
 
 VXSetPixelFast:
         pushf
         ; checks
         cmp     dx, GFX_WIDTH
-        jae     short SPixF0
+        jae     short SetPixelFExit
         cmp     cx, GFX_HEIGHT
-        jae     short SPixF0
+        jae     short SetPixelFExit
 
         push    bx
         push    dx
@@ -85,10 +97,10 @@ VXSetPixelFast:
         shr     bx, 1           ; (Y<<8 + X)>>1, carry = bit 0 of X
         adc     ah, 0           ; shift mask: 01b -> 10b if bit 0 of X set
         shr     bx, 1           ; (Y<<8 + X)>>2, carry = bit 1 of X
-        jnc     short SPixF1    ; mask = mask<<2 if bit 1 of X set
+        jnc     short SetPixelF1; mask = mask<<2 if bit 1 of X set
         shl     ah, 1
         shl     ah, 1
-SPixF1:
+SetPixelF1:
         mov     dx, VGA_SEQUENCER_ADDR
         out     dx, ax          ; write mask to register
 
@@ -105,7 +117,8 @@ SPixF1:
         mov     es:[bx], al
         pop     dx
         pop     bx
-SPixF0: popf
+SetPixelFExit:
+        popf
         ret
 
 ; Процедура получения цвета пикселя С из страницы видеобуффера по заданным
@@ -115,6 +128,7 @@ SPixF0: popf
 ;Вход:
 ;DX     горизонтальная координата в точках X, 0..319;
 ;CX     вертикальная координата в точках Y, 0..239;
+;ES     сегмент видеобуфера
 ;Выход:
 ;AL     индекс цвета в таблице, 0..255;
 
