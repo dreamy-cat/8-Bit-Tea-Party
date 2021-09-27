@@ -234,33 +234,43 @@ VXGetPalColor:
 
 ;Draw standard palette to screen.
 
-ColorTableDraw:
+VXColorTableDraw:
         pushf
         push ax
+        push bx
+        push cx
         push dx
         push si
         push di
         push es
         mov ax,GFX_SCR_ADDR
         mov es,ax                       ;Screen.
-        xor di,di                       ;3clk
-        ;sub di,di                       ;3clk
+        mov di,[vx_scr_active]
         mov si,di
-        cld                             ;Forward.
-        mov dx,0C8h                     ;200.
+        mov bx,GFX_HEIGHT
+        mov dx,VGA_SEQUENCER_ADDR
 CTabDr2:mov di,si
-        mov cx,0100h                    ;All 256 colors.
-CTabDr1:mov es:[di],al
-        inc al
+        mov ax,0102h                    ; ah = 1, al = mask register address
+        mov cl,0                        ; current color
+CTabDr1:out dx,ax
+        mov es:[di],cl
+        inc cl
+        shl ah,1
+        cmp ah,00001000b
+        jna CTabDr3
+        mov ah,1
         inc di
-        loop CTabDr1
-        add si,0140h
-        dec dx
+CTabDr3:cmp cl,0
+        jnz CTabDr1
+        add si,GFX_BYTES_PER_LINE
+        dec bx
         jnz short CTabDr2
         pop es
         pop di
         pop si
         pop dx
+        pop cx
+        pop bx
         pop ax
         popf
         ret

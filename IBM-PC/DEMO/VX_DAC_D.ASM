@@ -19,8 +19,7 @@ CPU 8086                        ;Поменять дриективы, если другой асссемблер.
         org 100h
 
         pushf
-        mov ax,13h                      ;13h standard video mode.
-        int 10h                         ;Уже использовать режим Х.
+        call    near VXSetModeX
 
         ; fill packed 6-6-6-6 palette
         mov     di, palette_rgb_6
@@ -99,7 +98,7 @@ Lbl7:   dec     si              ; counter--
         mov     dx, palette_rgb_6
         call    near VXSetPalette
 
-        call    near ColorTableDraw
+        call    near VXColorTableDraw
 
         mov ah,00h                      ;Press any key...
         int 16h
@@ -155,7 +154,7 @@ Lp5:    mov     al, bl          ; r = counter
         mov     dx, palette_rgb_8
         call    near VXSetPalette
 
-        call    near ColorTableDraw
+        call    near VXColorTableDraw
 
         mov     ah, 0
         int     16h
@@ -167,4 +166,5 @@ Lp5:    mov     al, bl          ; r = counter
 palette_rgb_8   db 100h * 03h dup (0)   ;24бит * 256 цветов = 768 байт.
 palette_rgb_6   db 240h dup (0)         ;18бит * 256 цветов = 576 байт.
 
-%include "VX_DAC.ASM"           ;Процедуры по работе с VGA, DAC.
+%include "VX_SYS.ASM"                   ;Библиотечные процедуры.
+%include "VX_DAC.ASM"                   ;Процедуры по работе с VGA, DAC.
