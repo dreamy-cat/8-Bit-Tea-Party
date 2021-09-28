@@ -11,17 +11,18 @@
 
 %include "VGA-X.ASM"            ;Директива включения заголовка для NASM.
 
-; Set VGA palette
-;
-; Input:
-;   AL = first color
-;   AH = count of colors to be set
-;   CL = input data format and reserve:
-;     bit 0: packed format RGBR (6-6-6-6)
-;         1: unpacked format RGB (8-8-8)
-;         2: BMP file format, BGRA (8-8-8-8)
-;         3..7: reserve
-;   DS:DX = color table address
+; Процедура загрузки палитры в DAC VGA адаптера. Читает таблицу цветов (их
+; компонентов Red, Green, Blue) из памяти и переназначает цвета видеоадаптера
+; в заданном диапазоне индексов.
+; Вход:
+; AL    первый переназначаемый цвет;
+; AH    количество загружаемых цветов;
+; CL    битовый параметр, формат входных данных и резерв:
+;     бит 0: упакованный формат RGBR (6-6-6-6)
+;         1: распакованный формат RGB (8-8-8)
+;         2: формат BMP файла, BGRA (8-8-8-8)
+;         3..7: резерв
+; DS:DX адрес таблицы цветов
 
 VXSetPalette:
         pushf
@@ -53,8 +54,7 @@ SetPal2:
         jz      SetPalExit
         ; BMP format
         mov     di, ReadBMPClr ; decoder fun
-; no registers used by decoder - russian.
-
+        ; no registers used by decoder
 SetPal3:
         mov     bl, ah          ; number of colors
         mov     bh, 0
@@ -171,15 +171,13 @@ ReadBMPClr:
         inc     si              ; skip alpha
         ret
 
-; Set one color of the palette
-
-;Переделать немного регистры, в AX:DX.
-
-; Input:
-;   AL = color
-;   AH = r
-;   BL = g              ;BX -> DL and DH.
-;   BH = b
+; Функция установки (замены) одиночного цвета в палитре видеоадаптера.
+; Назначает цвету с заданным индексом новые компоненты: Read, Green, Blue.
+; Вход:
+; AL    индекс цвета
+; AH    Red
+; BL    Green              ;BX -> DL and DH.
+; BH    Blue
 
 VXSetPalColor:
 ;Сохраняем флаги, всегда.
@@ -196,22 +194,20 @@ VXSetPalColor:
         out     dx, al          ; g
         mov     al, bh
         out     dx, al          ; b
-        sti                       ;Neponal.
+        sti
         pop     dx
         pop     ax
         popf
         ret
 
-; Get one color of the palette
-
-;Доделать, оформить.
-
-; Input:
-;   AL = color
-; Output:
-;   AH => r
-;   BL => g
-;   BH => b
+; Функция чтения одиночного цвета из палитры видеадаптера. Возвращает
+; компоненты Red, Green, Blue цвета с заданным индексом.
+; Вход:
+; AL    индекс цвета
+; Выход:
+; AH    Red
+; BL    Green
+; BH    Blue
 VXGetPalColor:
         push    cx
         push    dx
@@ -232,8 +228,12 @@ VXGetPalColor:
         pop     cx
         ret
 
-;Draw standard palette to screen.
-
+; Функция отрисовки всех 256 цветов из текущей палитры видеоадаптера.
+; Используется для тестирования.
+; Вход:
+;       нет
+; Выход:
+;       Измененный видеобуфер активной страницы.
 VXColorTableDraw:
         pushf
         push ax
