@@ -176,8 +176,8 @@ ReadBMPClr:
 ; Вход:
 ; AL    индекс цвета
 ; AH    Red
-; BL    Green              ;BX -> DL and DH.
-; BH    Blue
+; DL    Green
+; DH    Blue
 
 VXSetPalColor:
 ;Сохраняем флаги, всегда.
@@ -185,14 +185,15 @@ VXSetPalColor:
         push    ax
         push    dx
         cli
+        push    dx
         mov     dx, VGA_DAC_WRITE
         out     dx, al          ; color
         mov     dx, VGA_DAC_DATA
         mov     al, ah
         out     dx, al          ; r
-        mov     al, bl
+        pop     ax              ; al = g, ah = b
         out     dx, al          ; g
-        mov     al, bh
+        mov     al, ah
         out     dx, al          ; b
         sti
         pop     dx
@@ -206,11 +207,10 @@ VXSetPalColor:
 ; AL    индекс цвета
 ; Выход:
 ; AH    Red
-; BL    Green
-; BH    Blue
+; DL    Green
+; DH    Blue
 VXGetPalColor:
         push    cx
-        push    dx
         mov     cl, al          ; save color
         cli
         mov     dx, VGA_DAC_READ
@@ -219,12 +219,12 @@ VXGetPalColor:
         in      al, dx          ; r
         mov     ah, al
         in      al, dx          ; g
-        mov     bl, al
+        mov     ch, al
         in      al, dx          ; b
-        mov     bh, al
+        mov     dh, al
         sti
+        mov     dl, ch          ; g
         mov     al, cl          ; restore color
-        pop     dx
         pop     cx
         ret
 
