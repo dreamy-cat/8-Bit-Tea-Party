@@ -95,7 +95,7 @@ VXSetPixelFast:
         push    bx
         push    dx
         push    es
-        push    ax
+        push    ax              ; must be pushed last!
 ; Calc byte address and bit plane mask
 ; ByteOffset = Y*GFX_BYTES_PER_LINE + X/4 = Y*320/4 + X/4 = Y*80 + X/4 =
 ; = Y*64 + Y*16 + X/4 = Y<<6 + Y<<4 + X>>2 = (Y<<8)>>2 + Y<<4 + X>>2 =
@@ -209,7 +209,7 @@ VXGetPixelFast:
         push    bx
         push    dx
         push    es
-        push    ax
+        push    ax              ; must be pushed last!
 ; Calc byte address and bit plane index
 ; ByteOffset = Y*GFX_BYTES_PER_LINE + X/4 = Y*320/4 + X/4 = Y*80 + X/4 =
 ; = Y*64 + Y*16 + X/4 = Y<<6 + Y<<4 + X>>2 = (Y<<8)>>2 + Y<<4 + X>>2 =
