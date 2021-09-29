@@ -50,7 +50,7 @@ VXSetPixel:
         shr     bx, 1           ; faster than shr bx,cl and cannot trash cl
         shr     bx, 1           ; X/4
         add     bx, ax          ; addr = Y*GFX_BYTES_PER_LINE + X/4
-        add     bx, [vx_scr_offs] ; move to active video page
+        add     bx, [vx_scr_active] ; go to active video page
 
         ; set byte and exit
         pop     ax
@@ -115,7 +115,7 @@ SPixF1:
         shl     dx, 1
         shl     dx, 1           ; Y<<4
         add     bx, dx          ; offset = (Y<<8 + X)>>2 + Y<<4
-        add     bx, [vx_scr_offs] ; move to active video page
+        add     bx, [vx_scr_active] ; go to active video page
 
         ; set byte and exit
         pop     ax
@@ -161,7 +161,7 @@ VXGetPixel:
         shr     bx, 1           ; faster than shr bx,cl and cannot trash cl
         shr     bx, 1           ; X/4
         add     bx, ax          ; addr = Y*GFX_BYTES_PER_LINE + X/4
-        add     bx, [vx_scr_offs] ; move to active video page
+        add     bx, [vx_scr_active] ; go to active video page
 
         ; get byte and exit
         pop     ax
@@ -218,7 +218,7 @@ VXGetPixelFast:
         shl     dx, 1
         shl     dx, 1           ; Y<<4
         add     bx, dx          ; offset = (Y<<8 + X)>>2 + Y<<4
-        add     bx, [vx_scr_offs] ; move to active video page
+        add     bx, [vx_scr_active] ; go to active video page
 
         ; get byte and exit
         pop     ax
