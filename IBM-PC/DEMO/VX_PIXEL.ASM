@@ -31,6 +31,7 @@ VXSetPixel:
 
         push    bx
         push    dx
+        push    es
         push    ax              ; must be pushed last!
 
         ; set mask register
@@ -53,8 +54,11 @@ VXSetPixel:
         add     bx, [vx_scr_active] ; go to active video page
 
         ; set byte and exit
+        mov     ax, GFX_SCR_ADDR
+        mov     es, ax
         pop     ax
         mov     es:[bx], al
+        pop     es
         pop     dx
         pop     bx
 SetPix0:popf
@@ -90,6 +94,7 @@ VXSetPixelFast:
 
         push    bx
         push    dx
+        push    es
         push    ax
 ; Calc byte address and bit plane mask
 ; ByteOffset = Y*GFX_BYTES_PER_LINE + X/4 = Y*320/4 + X/4 = Y*80 + X/4 =
@@ -118,8 +123,11 @@ SPixF1:
         add     bx, [vx_scr_active] ; go to active video page
 
         ; set byte and exit
+        mov     ax, GFX_SCR_ADDR
+        mov     es, ax
         pop     ax
         mov     es:[bx], al
+        pop     es
         pop     dx
         pop     bx
 SPixF0: popf
@@ -145,6 +153,7 @@ VXGetPixel:
 
         push    bx
         push    dx
+        push    es
         push    ax              ; must be pushed last!
 
         ; select bit plane
@@ -164,8 +173,11 @@ VXGetPixel:
         add     bx, [vx_scr_active] ; go to active video page
 
         ; get byte and exit
+        mov     ax, GFX_SCR_ADDR
+        mov     es, ax
         pop     ax
         mov     al, es:[bx]
+        pop     es
         pop     dx
         pop     bx
 GetPixelExit:
@@ -196,6 +208,7 @@ VXGetPixelFast:
 
         push    bx
         push    dx
+        push    es
         push    ax
 ; Calc byte address and bit plane index
 ; ByteOffset = Y*GFX_BYTES_PER_LINE + X/4 = Y*320/4 + X/4 = Y*80 + X/4 =
@@ -221,8 +234,11 @@ VXGetPixelFast:
         add     bx, [vx_scr_active] ; go to active video page
 
         ; get byte and exit
+        mov     ax, GFX_SCR_ADDR
+        mov     es, ax
         pop     ax
         mov     al, es:[bx]
+        pop     es
         pop     dx
         pop     bx
 GetPixelFExit:

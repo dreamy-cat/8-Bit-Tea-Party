@@ -22,10 +22,8 @@
         pushf
 
         call    VXSetModeX
-        mov     ax, GFX_SCR_ADDR
-        mov     es, ax
 
-        ; function to test
+        ; варианты функций, которые тестируем
         mov     si, VXSetPixel
         ; mov     si, VXSetPixelFast
         mov     di, VXGetPixel
