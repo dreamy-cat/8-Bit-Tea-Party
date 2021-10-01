@@ -370,7 +370,10 @@ SDAC0:  mov ah,ds:[si+2]
         shr bh,cl
         ;mov cl,dl
         ;int 10h                        ;Was BIOS.
+        push dx
+        mov dx,bx
         call near VXSetPalColor
+        pop dx
         inc al
         add si,04h                      ;Next table color.
         dec di

@@ -3,7 +3,7 @@
 ;Платформа: 8086, VGA(256Kb).
 ;Инструменты: NASM.
 ;Модули: VGA-X, VX_SYS.
-;Авторы: Данила Перов(почта).
+;Авторы: Данила Перов(peroff@protonmail.com).
 ;Быстродействие: примерное количество тактов для каждой процедуры.
 ;Память: процед_1 = N, процед_2 занимает М байт.
 ;Краткая история изменений:
@@ -11,172 +11,18 @@
 
 %include "VGA-X.ASM"            ;Директива включения заголовка для NASM.
 
-;Файл разделить на демонстрацию и уже сами процедуры управления DAC.
-
-CPU 8086                                ;Удалить из библиотеки эту директиву.
-
-        org 100h
-
-        pushf
-        mov ax,13h                      ;13h standard video mode.
-        int 10h                         ;Уже использовать режим Х.
-
-        ; fill packed 6-6-6-6 palette
-        mov     di, palette_rgb_6
-        xor     ax, ax          ; bit buffer for output stream
-        mov     ch, 0           ; ch = number of bits in buffer
-                                ; Example:
-                                ;   AX = rrrrrr00 00000000
-                                ;   CH = 6
-        mov     si, 100h        ; counter of colors
-
-        mov     bl, 0           ; current R
-        mov     bh, 0           ; current G
-        mov     dl, 0           ; current B
-
-Lp1:
-        mov     dh, 0           ; component index: 0 = R, 1 = G, 2 = B
-CompLp:
-        cmp     dh, 0
-        jnz     CheckG
-        mov     al, bl          ; add R to bit buffer: xxxx???? 00rrrrrr
-        jmp     near AddToBuf
-CheckG: cmp     dh, 1
-        jnz     SetB
-        mov     al, bh          ; add G to bit buffer: xxxx???? 00gggggg
-        jmp     near AddToBuf
-SetB:   mov     al, dl          ; add B to bit buffer: xxxx???? 00bbbbbb
-AddToBuf:
-        mov     cl, 2
-        shl     al, cl          ; move to left byte side: xxxx???? rrrrrr00
-        mov     cl, 8
-        sub     cl, ch          ; 8-CH = free bits in AH
-        shr     ah, cl          ; move data to right edge: 0000xxxx rrrrrr00
-        shl     ax, cl          ; move data with R to buffer begin:
-                                ;   xxxxrrrr rr000000
-        add     ch, 6           ; bits += 6
-        cmp     ch, 8           ; is there at least one full byte?
-        jb      Lbl1
-        mov     [di], ah        ; yes, write it to the palette
-        inc     di
-        mov     ah, al          ; remove byte from buffer: rr000000 00000000
-        sub     ch, 8           ; bits -= 8
-
-Lbl1:   inc     dh              ; next color component
-        cmp     dh, 3
-        jb      CompLp
-
-Lbl3:   cmp     si, 100h/4*3    ; red - only in 1st part
-        jbe     Lbl4
-        inc     bl              ; r++
-        and     bl, 00111111b
-
-Lbl4:   cmp     si, 100h/4*1    ; green - in 2nd and 4th parts
-        ja      Lbl5
-        inc     bh              ; g++
-        and     bh, 00111111b
-        jmp     near Lbl6
-Lbl5:   cmp     si, 100h/4*3
-        ja      Lbl6
-        cmp     si, 100h/4*2
-        jbe     Lbl6
-        inc     bh              ; g++
-        and     bh, 00111111b
-
-Lbl6:   cmp     si, 100h/4*2    ; blue - in 3rd and 4th parts
-        ja      Lbl7
-        inc     dl              ; b++
-        and     dl, 00111111b
-
-Lbl7:   dec     si              ; counter--
-        jnz     Lp1             ; next color
-
-        ; do set new palette
-        mov     al, 0           ; first color
-        mov     ah, 0           ; all 256 colors
-        mov     cl, 1           ; packed format
-        mov     dx, palette_rgb_6
-        call    near VXSetPalette
-
-        call    near ColorTableDraw
-
-        mov ah,00h                      ;Press any key...
-        int 16h
-
-        ; fill unpacked 8-8-8 palette
-        mov     di, palette_rgb_8
-        cld
-        mov     cx, 64          ; first 64 colors
-        mov     bl, 0
-Lp2:    mov     al, bl          ; r = counter
-        stosb
-        mov     al, 0           ; g = 0
-        stosb
-        mov     al, 0           ; b = 0
-        stosb
-        inc     bl
-        loop    Lp2
-        mov     cx, 64          ; next 64 colors
-        mov     bl, 0
-Lp3:    mov     al, 0           ; r = 0
-        stosb
-        mov     al, bl          ; g = counter
-        stosb
-        mov     al, 0           ; b = 0
-        stosb
-        inc     bl
-        loop    Lp3
-        mov     cx, 64          ; next 64 colors
-        mov     bl, 0
-Lp4:    mov     al, bl          ; r = counter
-        stosb
-        mov     al, bl          ; g = counter
-        stosb
-        mov     al, 0           ; b = 0
-        stosb
-        inc     bl
-        loop    Lp4
-        mov     cx, 64          ; next 64 colors
-        mov     bl, 0
-Lp5:    mov     al, bl          ; r = counter
-        stosb
-        mov     al, 0           ; g = 0
-        stosb
-        mov     al, bl          ; b = counter
-        stosb
-        inc     bl
-        loop    Lp5
-
-        ; do set new palette
-        mov     al, 0           ; first color
-        mov     ah, 0           ; all 256 colors
-        mov     cl, 2           ; unpacked format
-        mov     dx, palette_rgb_8
-        call    near VXSetPalette
-
-        call    near ColorTableDraw
-
-        mov     ah, 0
-        int     16h
-        popf
-        ret
-
-;Примеры данных для подачи на вход процедуры установки палитры.
-
-palette_rgb_8   db 100h * 03h dup (0)   ;24бит * 256 цветов = 768 байт.
-palette_rgb_6   db 240h dup (0)         ;18бит * 256 цветов = 576 байт.
-
-; Set VGA palette
-;
-; Input:
-;   AL = first color
-;   AH = count of colors to be set
-;   CL = input data format and reserve:
-;     bit 0: packed format RGBR (6-6-6-6)
-;         1: unpacked format RGB (8-8-8)
-;         2: BMP file format, BGRA (8-8-8-8)
-;         3..7: reserve
-;   DS:DX = color table address
+; Процедура загрузки палитры в DAC VGA адаптера. Читает таблицу цветов (их
+; компонентов Red, Green, Blue) из памяти и переназначает цвета видеоадаптера
+; в заданном диапазоне индексов.
+; Вход:
+; AL    первый переназначаемый цвет;
+; AH    количество загружаемых цветов;
+; CL    битовый параметр, формат входных данных и резерв:
+;     бит 0: упакованный формат RGBR (6-6-6-6)
+;         1: распакованный формат RGB (8-8-8)
+;         2: формат BMP файла, BGRA (8-8-8-8)
+;         3..7: резерв
+; DS:DX адрес таблицы цветов
 
 VXSetPalette:
         pushf
@@ -208,8 +54,7 @@ SetPal2:
         jz      SetPalExit
         ; BMP format
         mov     di, ReadBMPClr ; decoder fun
-; no registers used by decoder - russian.
-
+        ; no registers used by decoder
 SetPal3:
         mov     bl, ah          ; number of colors
         mov     bh, 0
@@ -326,15 +171,13 @@ ReadBMPClr:
         inc     si              ; skip alpha
         ret
 
-; Set one color of the palette
-
-;Переделать немного регистры, в AX:DX.
-
-; Input:
-;   AL = color
-;   AH = r
-;   BL = g              ;BX -> DL and DH.
-;   BH = b
+; Функция установки (замены) одиночного цвета в палитре видеоадаптера.
+; Назначает цвету с заданным индексом новые компоненты: Read, Green, Blue.
+; Вход:
+; AL    индекс цвета
+; AH    Red
+; DL    Green
+; DH    Blue
 
 VXSetPalColor:
 ;Сохраняем флаги, всегда.
@@ -342,34 +185,32 @@ VXSetPalColor:
         push    ax
         push    dx
         cli
+        push    dx
         mov     dx, VGA_DAC_WRITE
         out     dx, al          ; color
         mov     dx, VGA_DAC_DATA
         mov     al, ah
         out     dx, al          ; r
-        mov     al, bl
+        pop     ax              ; al = g, ah = b
         out     dx, al          ; g
-        mov     al, bh
+        mov     al, ah
         out     dx, al          ; b
-        sti                       ;Neponal.
+        sti
         pop     dx
         pop     ax
         popf
         ret
 
-; Get one color of the palette
-
-;Доделать, оформить.
-
-; Input:
-;   AL = color
-; Output:
-;   AH => r
-;   BL => g
-;   BH => b
+; Функция чтения одиночного цвета из палитры видеадаптера. Возвращает
+; компоненты Red, Green, Blue цвета с заданным индексом.
+; Вход:
+; AL    индекс цвета
+; Выход:
+; AH    Red
+; DL    Green
+; DH    Blue
 VXGetPalColor:
         push    cx
-        push    dx
         mov     cl, al          ; save color
         cli
         mov     dx, VGA_DAC_READ
@@ -378,44 +219,58 @@ VXGetPalColor:
         in      al, dx          ; r
         mov     ah, al
         in      al, dx          ; g
-        mov     bl, al
+        mov     ch, al
         in      al, dx          ; b
-        mov     bh, al
+        mov     dh, al
         sti
+        mov     dl, ch          ; g
         mov     al, cl          ; restore color
-        pop     dx
         pop     cx
         ret
 
-;Draw standard palette to screen.
-
-ColorTableDraw:
+; Функция отрисовки всех 256 цветов из текущей палитры видеоадаптера.
+; Используется для тестирования.
+; Вход:
+;       нет
+; Выход:
+;       Измененный видеобуфер активной страницы.
+VXColorTableDraw:
         pushf
         push ax
+        push bx
+        push cx
         push dx
         push si
         push di
         push es
         mov ax,GFX_SCR_ADDR
         mov es,ax                       ;Screen.
-        xor di,di                       ;3clk
-        ;sub di,di                       ;3clk
+        mov di,[vx_scr_active]
         mov si,di
-        cld                             ;Forward.
-        mov dx,0C8h                     ;200.
+        mov bx,GFX_HEIGHT
+        mov dx,VGA_SEQUENCER_ADDR
 CTabDr2:mov di,si
-        mov cx,0100h                    ;All 256 colors.
-CTabDr1:mov es:[di],al
-        inc al
+        mov ax,0102h                    ; ah = 1, al = mask register address
+        mov cl,0                        ; current color
+CTabDr1:out dx,ax
+        mov es:[di],cl
+        inc cl
+        shl ah,1
+        cmp ah,00001000b
+        jna CTabDr3
+        mov ah,1
         inc di
-        loop CTabDr1
-        add si,0140h
-        dec dx
+CTabDr3:cmp cl,0
+        jnz CTabDr1
+        add si,GFX_BYTES_PER_LINE
+        dec bx
         jnz short CTabDr2
         pop es
         pop di
         pop si
         pop dx
+        pop cx
+        pop bx
         pop ax
         popf
         ret
