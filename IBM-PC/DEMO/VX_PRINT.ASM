@@ -72,20 +72,21 @@ VXPrintString:
 
 
 ;Процедура печати графического символа на экран в режим Х, по координатам.
-;Пока что использовать шрифт и позицию глобальную, параметры шрифта так-же.
-;После исполнения сдвгаем позицию слева направо на размер шрифта, если не
-;влезает вправо, то переносим на слдующую строку, так же по размеру шрифта
+;Пока что использовать шрифт и позицию глобальную, параметры шрифта так же.
+;После исполнения сдвигаем позицию слева направо на размер шрифта, если не
+;влезает вправо, то переносим на следующую строку, так же по размеру шрифта
 ;по вертикали.
 ;Вход:
 ;AL     символ для вывода;
 ;AH     биты:
-;  0..3   масштабирование для символа, 1..16(сначала просто масштаб 1х);
+;  0..3   масштабирование для символа, 1..16;
 ;  4..7   резерв, здесь можно стиль вывода будет сделать, задержку,
 ;         маску и т.д.
 ;DL     цвет символа
 ;Выход: измененный видеобуффер в активной странице.
 
 VXPrintChar:
+        ; сохраняем регистры, сегментные сохраним позже
         pushf
         push ax
         push bx
@@ -94,161 +95,186 @@ VXPrintChar:
         push si
         push di
         push bp
-        cld
+        cld                             ; направление - вперед
 
+        ; основные параметры отрисовки храним в BX, он не меняется до
+        ; выхода из функции:
+        ; BL - цвет
+        ; BH - битовые параметры (включая масштабирование)
         mov bh,ah
         mov bl,dl
 
-        mov cl,[vx_font_first_c]
+        ; проверяем, есть ли нужный символ в текущем шрифте
+        mov cl,[vx_font_first_c]        ; код первого символа в шрифте
         cmp al,cl
         jnb short P0
-        jmp near Exit
-P0:     mov dl,[vx_font_chars]
+PrntJExit:
+        jmp near PrntExit               ; слишком далеко для условного short
+P0:     mov dl,[vx_font_chars]          ; количество символов в шрифте
         add dl,cl
-        dec dl                          ; last code
+        dec dl                          ; DL = код последнего символа
         cmp al,dl
-        jna short P00
-        jmp near Exit
+        ja short PrntJExit
 
-P00:    mov si,[vx_font_addr + 2]
-        sub al,cl
-        mov dl,[vx_font_char_b]
+        ; находим адрес образа нужного символа:
+        ; addr = (code-first_code)*symbol_size + font_addr
+        mov si,[vx_font_addr + 2]       ; смещение шрифта
+        sub al,cl                       ; code - first_code
+        mov dl,[vx_font_char_b]         ; ширина символа в байтах
         mul dl
         add si,ax
 
-        mov ch,bh
-        and ch,00001111b
-        inc ch
+        mov ch,bh                       ; битовые параметры
+        and ch,00001111b                ; выделяем масштабирование
+        inc ch                          ; CH = коэфф-т масштабирования
 
-        mov di,[vx_cursor_x]
-        mov al,[vx_font_width]
-        mul ch
-        add ax,di
-        cmp ax,GFX_WIDTH
-        jna short P50
-        jmp near Exit
-P50:    mov dx,[vx_cursor_y]
-        mov al,[vx_font_height]
-        mul ch
-        add ax,dx
-        cmp ax,GFX_HEIGHT
-        jna short P51
-        jmp near Exit
-P51:    mov ax,dx
+        ; проверяем, можно ли полностью вписать символ в текущую позицию на
+        ; экране, если нет - на выход
+        mov di,[vx_cursor_x]            ; позиция курсора по X
+        mov al,[vx_font_width]          ; ширина символа
+        mul ch                          ; реальная ширина с учетом масштаба
+        add ax,di                       ; первый пиксель справа после символа
+        cmp ax,GFX_WIDTH                ; не выйдем ли за экран
+        ja short PrntJExit
+        mov dx,[vx_cursor_y]            ; позиция курсора по Y
+        mov al,[vx_font_height]         ; высота символа
+        mul ch                          ; реальная высота с учетом масштаба
+        add ax,dx                       ; первый пиксель снизу после символа
+        cmp ax,GFX_HEIGHT               ; не выйдем ли за экран
+        ja short PrntJExit
+        ; считаем адрес верхнего левого угла символа в видеопамяти:
+        ; DI = Y * GFX_BYTES_PER_LINE + (X >> 2) + active_page
+        mov ax,dx                       ; Y курсора
         mov dx,GFX_BYTES_PER_LINE
         mul dx
-        shr di,1
+        shr di,1                        ; X курсора >> 2
         shr di,1
         add di,ax
-        add di,[vx_scr_active]
+        add di,[vx_scr_active]          ; начало активной видеостраницы
 
-        mov al,ch
+        ; предрасчет смещения вниз на K строк экрана, где K = масштаб
+        mov al,ch                       ; масштаб
         mov dl,GFX_BYTES_PER_LINE
         mul dl
-        mov bp,ax
+        mov bp,ax                       ; сохраняем в BP для использования
+                                        ; в цикле потом
 
-        mov ch,[vx_font_height]
+        mov ch,[vx_font_height]         ; CH = высота символа, счетчик цикла
         mov cl,[vx_font_width]
-        mov dl,cl
+        mov dl,cl                       ; DL = ширина символа
         and cl,00000011b
         mov dh,00000001b
-        shl dh,cl                       ; planes mask backup
+        shl dh,cl                       ; DH = начальная маска битовых планов
 
+        ; сохраняем и заменяем сегментные регистры
         push ds
         push es
         mov ax,[vx_font_addr]
-        mov ds,ax
+        mov ds,ax                       ; DS = сегмент шрифта
         mov ax,GFX_SCR_ADDR
-        mov es,ax
+        mov es,ax                       ; ES = видеобуфер
 
-        mov ah, 0                       ; bits in buffer
+        ; AL - битовый буфер для чтения шрифта
+        ; AH - текущее количество битов в нем
+        mov ah,0
 
-; for y := 1 to font_height do ...
-;   for x := 1 to font_width do ...
-;     for n1 := 1 to scale do ...
-;       if pixels[x] then
-;         for n2 := 1 to scale do ...
+; for (y = 0; y < font_height; y++)
+;   for (x = 0; x < font_width; x++)
+;     for (n1 = 1; n1 <= scale; n1++)
+;       if (pixels[x]) 
+;         for (n2 = 1; n2 <= scale; n2++)
 ;           drawPixel()
-P4:     ; new line
-        mov cl,dl;cs:[vx_font_width]       ; rework CS
-        push di
-        push dx                         ; dh - mask, dl - free
-P3:     ; new pixel
-        test ah,ah
-        jnz short P1
-        lodsb
-        mov ah,8
-P1:
-        mov dl,bh
-        and dl,00001111b
-        inc dl
-        ;next horz block
-P11:    test al,10000000b
-        jz short P10
 
+        ; рисуем следующую линию шрифта
+P4:     mov cl,dl                       ; CL = ширина символа, счетчик цикла
+        push di                         ; сохраняем текущий адрес линии
+        push dx                         ; DH - маска планов для первого пикселя,
+                                        ; DL - ширина символа
+                                        
+        ; рисуем следующую точку (пиксель) шрифта
+P3:     test ah,ah                      ; если буфер шрифта пуст, то...
+        jnz short P1
+        lodsb                           ; загружаем в него очередные 8 бит
+        mov ah,8                        ; кол-во бит в буфере
+P1:     mov dl,bh                       ; битовые параметры
+        and dl,00001111b                ; выделяем масштабирование
+        inc dl                          ; коэфф-т масштабирования, счетчик
+
+        ; каждую точку шрифта масштабируем по горизонтали в DL раз,
+        ; повторяя рисование одного и того же пикселя несколько раз
+P11:    test al,10000000b               ; если в шрифте точка не закрашена, 
+        jz short P10                    ; пропускаем рисование
+
+        ; масштабируем по вертикали, рисуем "столбик" из закрашенных пикселей
+        ; высотой, равной коэфф-у масштабирования
         push ax
-        push dx                         ; ?
-        mov ah,dh
-        mov al,02h
+        push dx                         
+        mov ah,dh                       ; маска битовых планов
+        mov al,02h                      ; адрес регистра VGA
         mov dx,VGA_SEQUENCER_ADDR
-        out dx,ax
-        mov ax,di
-        mov dl,bh
-        and dl,00001111b
-        inc dl
-P30:    mov byte es:[di],bl             ; color
-        add di,GFX_BYTES_PER_LINE
+        out dx,ax                       ; пишем в регистр маски
+        mov ax,di                       ; сохраняем текущий адрес в буфере
+        mov dl,bh                       ; битовые параметры
+        and dl,00001111b                ; выделяем масштабирование
+        inc dl                          ; коэфф-т масштабирования
+P30:    mov byte es:[di],bl             ; пишем в видеобуфер
+        add di,GFX_BYTES_PER_LINE       ; переходим на линию ниже
         dec dl
-        jnz short P30
-        mov di,ax
+        jnz short P30                   ; следующий пиксель в столбике
+        mov di,ax                       ; восстанавливаем позицию
         pop dx
         pop ax
 
-P10:    shl dh,1
+P10:    shl dh,1                        ; сдвигаем маску планов
         cmp dh,00001000b
         jna P5
-        mov dh,00000001b
-        inc di
+        mov dh,00000001b                ; циклически младшие 4 бита
+        inc di                          ; каждые 4 пикселя сдвигаем позицию
 P5:     dec dl
-        jnz short P11
+        jnz short P11                   ; следующий повтор той же точки шрифта
 
-        shl al,1
-        dec ah
-        dec cl
-        jnz short P3
+        shl al,1                        ; выкидываем бит шрифта из буфера
+        dec ah                          ; бит_в_буфере--
+        dec cl                          
+        jnz short P3                    ; следующая точка шрифта
 
-        pop dx
-        pop di
-        add di,bp
+        pop dx                          ; DH - маска планов для первого пикселя,
+                                        ; DL - ширина символа
+        pop di                          ; позиция начала строки
+        add di,bp                       ; сдвигаем вниз на N=масштаб строк
 
         dec ch
-        jnz short P4
+        jnz short P4                    ; следующая строка шрифта
 
+        ; восстанавливаем сегментные регистры (и доступ к переменным)
         pop es
         pop ds
 
-        mov ch,bh
-        and ch,00001111b
-        inc ch
-
-        mov dx,[vx_cursor_x]
-        mov al,[vx_font_width]
-        mul ch
-        add dx,ax
-        mov [vx_cursor_x],dx
-        add dx,ax
+        ; сдвигаем курсор на ширину символа (с учетом масштаба), проверяем, 
+        ; влезет ли еще один символ на ту же строку; если нет, спускаемся
+        ; на следующую
+        mov ch,bh                       ; битовые параметры
+        and ch,00001111b                ; выделяем масштабирование
+        inc ch                          ; коэфф-т масштабирования
+        mov dx,[vx_cursor_x]            ; X курсора
+        mov al,[vx_font_width]          ; ширина символа
+        mul ch                          ; умножаем на масштаб
+        add dx,ax                       ; первый пиксель справа после символа
+        mov [vx_cursor_x],dx            ; = новая позиция курсора
+        add dx,ax                       ; а еще символ влезет?
         cmp dx,GFX_WIDTH
-        jna short P40
-        mov dx,[vx_cursor_y]
-        mov al,[vx_font_height]
-        mul ch
-        add dx,ax
-        mov [vx_cursor_y],dx
+        jna short PrntExit              ; если да, то на выход
+        mov dx,[vx_cursor_y]            ; Y курсора
+        mov al,[vx_font_height]         ; высота символа
+        mul ch                          ; умножаем на масштаб
+        add dx,ax                       
+        mov [vx_cursor_y],dx            ; сдвигаем курсор на строчку ниже
         xor ax,ax
-        mov [vx_cursor_x],ax
-P40:
+        mov [vx_cursor_x],ax            ; и ставим в начало строки
 
-Exit:   pop bp
+PrntExit:
+        ; восстанавливаем регистры
+        pop bp
         pop di
         pop si
         pop dx
