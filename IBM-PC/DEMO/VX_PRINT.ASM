@@ -167,13 +167,13 @@ PrntChr0:
         mov al,[vx_font_width]          ; ширина символа
         mul ch                          ; реальная ширина с учетом масштаба
         add ax,di                       ; первый пиксель справа после символа
-        cmp ax,GFX_WIDTH                ; не выйдем ли за экран
+        cmp ax,GFX_SCR_WIDTH            ; не выйдем ли за экран
         ja short PrntChrJExit
         mov dx,[vx_cursor_y]            ; позиция курсора по Y
         mov al,[vx_font_height]         ; высота символа
         mul ch                          ; реальная высота с учетом масштаба
         add ax,dx                       ; первый пиксель снизу после символа
-        cmp ax,GFX_HEIGHT               ; не выйдем ли за экран
+        cmp ax,GFX_SCR_HEIGHT           ; не выйдем ли за экран
         ja short PrntChrJExit
         ; считаем адрес верхнего левого угла символа в видеопамяти:
         ; DI = Y * GFX_BYTES_PER_LINE + (X >> 2) + active_page
@@ -302,7 +302,7 @@ PrntChr7:
         add dx,ax                       ; первый пиксель справа после символа
         mov [vx_cursor_x],dx            ; = новая позиция курсора
         add dx,ax                       ; а еще символ влезет?
-        cmp dx,GFX_WIDTH
+        cmp dx,GFX_SCR_WIDTH
         jna short PrntChrExit           ; если да, то на выход
         mov dx,[vx_cursor_y]            ; Y курсора
         mov al,[vx_font_height]         ; высота символа
