@@ -24,9 +24,9 @@
 VXSetPixel:
         pushf
         ; checks
-        cmp     dx, GFX_SCR_WIDTH
+        cmp     dx, GFX_WIDTH
         jae     short SetPix0
-        cmp     cx, GFX_SCR_HEIGHT
+        cmp     cx, GFX_HEIGHT
         jae     short SetPix0
 
         push    bx
@@ -87,9 +87,9 @@ SetPix0:popf
 VXSetPixelFast:
         pushf
         ; checks
-        cmp     dx, GFX_SCR_WIDTH
+        cmp     dx, GFX_WIDTH
         jae     short SPixF0
-        cmp     cx, GFX_SCR_HEIGHT
+        cmp     cx, GFX_HEIGHT
         jae     short SPixF0
 
         push    bx
@@ -146,9 +146,9 @@ SPixF0: popf
 VXGetPixel:
         pushf
         ; checks
-        cmp     dx, GFX_SCR_WIDTH
+        cmp     dx, GFX_WIDTH
         jae     short GetPixelExit
-        cmp     cx, GFX_SCR_HEIGHT
+        cmp     cx, GFX_HEIGHT
         jae     short GetPixelExit
 
         push    bx
@@ -201,9 +201,9 @@ GetPixelExit:
 VXGetPixelFast:
         pushf
         ; checks
-        cmp     dx, GFX_SCR_WIDTH
+        cmp     dx, GFX_WIDTH
         jae     short GetPixelFExit
-        cmp     cx, GFX_SCR_HEIGHT
+        cmp     cx, GFX_HEIGHT
         jae     short GetPixelFExit
 
         push    bx
