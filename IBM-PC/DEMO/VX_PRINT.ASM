@@ -38,6 +38,38 @@ vx_font_height  db 00h          ;Высота символа в линиях.
 ;Если потребуются вспомогательные процедуры работы со шрифтом, то добавляй
 ;временно прямо сюда, если что подумаем позже об отдельном файле. VXFontLoad.
 
+;Загружаем в глобальные переменные адрес и прочие данные системного шрифта 
+;по умолчанию, размер: 8x8.
+;Вход:  нет;
+;Выход: измененные глобальные переменные vx_font_*       
+LoadDefaultFont:
+        pushf
+        push ax
+        push bx
+        push cx
+        push dx
+        push bp
+        push es
+        
+        mov ax,1130h                    ; получить параметры шрифта из BIOS 
+        mov bh,3                        ; выбираем шрифт 8x8
+        int 10h
+        mov ax,es
+        mov [vx_font_addr],ax           ; сегмент данных шрифта
+        mov [vx_font_addr + 2],bp       ; смещение данных шрифта 
+        mov byte [vx_font_chars],0      ; количество символов в шрифте, 0=256
+        mov byte [vx_font_char_b],8     ; байтов на один символ
+        mov byte [vx_font_width],8      ; ширина символа
+        mov byte [vx_font_height],8     ; высота символа        
+        
+        pop es
+        pop bp
+        pop dx
+        pop cx
+        pop bx
+        pop ax
+        popf
+        ret
 
 ;Дополнительно, только если уже ниже процедуры реализованы.
 ;Всё по аналогии, только с учетом вывода в окно.
@@ -271,7 +303,7 @@ PrntChr7:
         mov [vx_cursor_x],dx            ; = новая позиция курсора
         add dx,ax                       ; а еще символ влезет?
         cmp dx,GFX_WIDTH
-        jna short PrntChrExit              ; если да, то на выход
+        jna short PrntChrExit           ; если да, то на выход
         mov dx,[vx_cursor_y]            ; Y курсора
         mov al,[vx_font_height]         ; высота символа
         mul ch                          ; умножаем на масштаб

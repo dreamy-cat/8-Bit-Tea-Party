@@ -13,28 +13,18 @@
 
 CPU 8086                        ;Поменять директивы, если другой ассемблер.
 
-; Демонстрация функции печати графического символа в режиме X. Использует 
+; Демонстрация функции печати графического символа в режиме X. Использует
 ; дефолтный системный шрифт 8x8 для печати фона и пары строк.
 
         org 100h                ;COM файл.
-        
+
         pushf
 
         call near VXSetModeX
 
-        ; get font addr
-        mov ax,1130h
-        mov bh,3                        ; 8x8
-        int 10h
-        mov ax,es
-        mov [vx_font_addr],ax
-        mov [vx_font_addr + 2],bp
-        mov byte [vx_font_chars],0      ;chars in font. 0 = 256
-        mov [vx_font_char_b],cl         ;bytes per char
-        mov byte [vx_font_width],8      ;always 8 for default fonts
-        mov [vx_font_height],cl
+        call near LoadDefaultFont       ; загружаем системный шрифт 8x8
 
-        ; заполняем экран цифрами от 0 до 9 в масштабе x2, в конце оставляем 
+        ; заполняем экран цифрами от 0 до 9 в масштабе x2, в конце оставляем
         ; пустое место для надписи
         mov cx,(GFX_WIDTH/8/2) * (GFX_HEIGHT/8/2) - 13
         mov al,'0'                      ; начальный символ
