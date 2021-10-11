@@ -35,7 +35,7 @@
         ; top side
 Lp1:    call    si              ; VXSetPixel(Fast)
         inc     dx              ; x++
-        cmp     dx, GFX_SCR_WIDTH
+        cmp     dx, GFX_WIDTH
         jb      short Lp1
 
         ; right side
@@ -43,7 +43,7 @@ Lp1:    call    si              ; VXSetPixel(Fast)
         inc     cl              ; y++
 Lp2:    call    si              ; VXSetPixel(Fast)
         inc     cl              ; y++
-        cmp     cl, GFX_SCR_HEIGHT
+        cmp     cl, GFX_HEIGHT
         jb      short Lp2
 
         ; bottom side
@@ -67,17 +67,17 @@ Lp4:    call    si              ; VXSetPixel(Fast)
 Lp5:    call    si              ; VXSetPixel(Fast)
         inc     dx              ; x++
         inc     cl              ; y++
-        cmp     cl, GFX_SCR_HEIGHT - 1 - 1
+        cmp     cl, GFX_HEIGHT - 1 - 1
         jna     short Lp5
 
         ; diagonal line from right-top to left-bottom
         mov     al, 5           ; purple color
-        mov     dx, GFX_SCR_WIDTH - 1 - 1 ; x = width-2
+        mov     dx, GFX_WIDTH - 1 - 1 ; x = width-2
         mov     cl, 1           ; y = 1
 Lp6:    call    si              ; VXSetPixel(Fast)
         dec     dx              ; x--
         inc     cl              ; y++
-        cmp     cl, GFX_SCR_HEIGHT - 1 - 1
+        cmp     cl, GFX_HEIGHT - 1 - 1
         jna     short Lp6
 
         mov     ah, 00h         ; Press any key.
@@ -97,11 +97,11 @@ Redraw: mov     al, 13          ; bright purple
         call    si              ; VXSetPixel(Fast)
 NextPxl:
         inc     dx              ; x++
-        cmp     dx, GFX_SCR_WIDTH
+        cmp     dx, GFX_WIDTH
         jb      Lp7
         xor     dx, dx          ; x = 0
         inc     cx              ; y++
-        cmp     cx, GFX_SCR_HEIGHT
+        cmp     cx, GFX_HEIGHT
         jb      Lp7
 
         mov     ah, 00h         ; Press any key.
@@ -112,10 +112,10 @@ NextPxl:
 Dem2:   xor dx,dx                       ; x = 0
 Dem1:   call si                         ; VXSetPixel
         inc dx
-        cmp dx,GFX_SCR_WIDTH
+        cmp dx,GFX_WIDTH
         jne short Dem1
         inc cx
-        cmp cx,GFX_SCR_HEIGHT
+        cmp cx,GFX_HEIGHT
         jne short Dem2
 
         xor cx,cx                       ; y = 0
@@ -126,10 +126,10 @@ Dem3:   call di                         ; VXGetPixel
         call si                         ; VXSetPixel
         inc dx
         inc dx
-        cmp dx,GFX_SCR_WIDTH
+        cmp dx,GFX_WIDTH
         jne short Dem3
         inc cx
-        cmp cx,GFX_SCR_HEIGHT
+        cmp cx,GFX_HEIGHT
         jne short Dem4
 
         mov     ah, 00h         ; Press any key.

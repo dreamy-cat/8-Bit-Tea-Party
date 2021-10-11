@@ -247,7 +247,7 @@ VXColorTableDraw:
         mov es,ax                       ;Screen.
         mov di,[vx_scr_active]
         mov si,di
-        mov bx,GFX_SCR_HEIGHT
+        mov bx,GFX_HEIGHT
         mov dx,VGA_SEQUENCER_ADDR
 CTabDr2:mov di,si
         mov ax,0102h                    ; ah = 1, al = mask register address
