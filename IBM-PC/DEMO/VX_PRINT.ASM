@@ -169,6 +169,9 @@ PrntChr0:
         mov di,[vx_cursor_x]            ; позиция курсора по X
         mov al,[vx_font_width]          ; ширина символа
         mul ch                          ; реальная ширина с учетом масштаба
+        jz short PrntChrJExit
+        cmp ax,0FFh
+        ja short PrntChrJExit
         add ax,di                       ; первый пиксель справа после символа
         cmp ax,GFX_SCR_WIDTH            ; не выйдем ли за экран
         ja short PrntChrJExit
