@@ -199,8 +199,10 @@ PrntChr0:
                                         ; в цикле потом
 
         mov ch,[vx_font_height]         ; CH = высота символа, счетчик цикла
-        mov cl,[vx_font_width]
-        mov dl,cl                       ; DL = ширина символа
+        mov dl,[vx_font_width]          ; DL = ширина символа
+
+        mov ax,[vx_cursor_x]            ; позиция курсора по X
+        mov cl,al
         and cl,00000011b
         mov dh,00000001b
         shl dh,cl                       ; DH = начальная маска битовых планов
