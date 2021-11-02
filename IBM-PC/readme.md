@@ -22,3 +22,12 @@
  Столяров А.В., Том-1. Азы программирования, ISBN 978-5-317-06574-4.
 
 
+ Черновик ссылок(раскидать)
+
+https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/util/ Полезные утилиты ДОСБокса.
+https://corexor.wordpress.com/ - блог немного про ассемблер английский.
+https://www.vogons.org/viewtopic.php?t=7323 - дополнительное обсуждение отладчика ДОСБокса со ссылкой.
+https://assembler-code.com/ - блог на русском с полезными ссылками.
+http://asmirvine.com/ - К. Ирвин, оф. сайт.
+http://bitsavers.trailing-edge.com/pdf/ibm/pc/cards/IBM_VGA_XGA_Technical_Reference_Manual_May92.pdf - черновик документации VGA, 1992.
+
