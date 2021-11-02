@@ -76,7 +76,7 @@ SetPalLp:
         ;   al = r
         ;   bl = g
         ;   bh = b
-        call    di              ;Danger code! :)
+        call    di              ;DANger code! :)
         out     dx, al          ; write r
         mov     al, bl
         out     dx, al          ; write g
@@ -180,24 +180,32 @@ ReadBMPClr:
 ; DH    Blue
 
 VXSetPalColor:
-;Сохраняем флаги, всегда.
+        ; сохраняем флаги и регистры
         pushf
-        push    ax
-        push    dx
+        push ax
+        push dx
+        ; При работе с DAC рекомендуется запрещать прерывания, хотя, возможно,
+        ; для работы с одиночным цветом это и не обязательно.
         cli
-        push    dx
-        mov     dx, VGA_DAC_WRITE
-        out     dx, al          ; color
-        mov     dx, VGA_DAC_DATA
-        mov     al, ah
-        out     dx, al          ; r
-        pop     ax              ; al = g, ah = b
-        out     dx, al          ; g
-        mov     al, ah
-        out     dx, al          ; b
+        push dx                         ; сохраняем параметры Green, Blue
+        ; Записываем в регистр DAC номер изменяемого цвета. Может быть, можно
+        ; немного оптимизировать и совместить запись с первым компонентом,
+        ; т.к. порты смежные.
+        mov dx,VGA_DAC_WRITE
+        out dx,al                       ; номер цвета
+        ; записываем компоненты
+        mov dx,VGA_DAC_DATA
+        mov al,ah
+        out dx,al                       ; Red
+        pop ax                          ; восстанавливаем AL=Green, AH=Blue
+        out dx,al                       ; Green
+        mov al,ah
+        out dx,al                       ; Blue
+        ; разрешаем прерывания (хотя это и так сделает POPF)
         sti
-        pop     dx
-        pop     ax
+        ; восстанавливаем регистры и флаги
+        pop dx
+        pop ax
         popf
         ret
 
@@ -210,22 +218,31 @@ VXSetPalColor:
 ; DL    Green
 ; DH    Blue
 VXGetPalColor:
-        push    cx
-        mov     cl, al          ; save color
+        ; сохраняем флаги и регистры
+        pushf
+        push cx
+        mov cl,al                       ; сохраняем номер цвета
+        ; При работе с DAC рекомендуется запрещать прерывания, хотя, возможно,
+        ; для работы с одиночным цветом это и не обязательно.
         cli
-        mov     dx, VGA_DAC_READ
-        out     dx, al          ; color
-        mov     dx, VGA_DAC_DATA
-        in      al, dx          ; r
-        mov     ah, al
-        in      al, dx          ; g
-        mov     ch, al
-        in      al, dx          ; b
-        mov     dh, al
+        ; записываем в регистр DAC номер изменяемого цвета
+        mov dx,VGA_DAC_READ
+        out dx,al                       ; номер цвета
+        ; читаем из регистра компоненты цвета
+        mov dx,VGA_DAC_DATA
+        in al,dx                        ; Red
+        mov ah,al                       ; AH = Red
+        in al,dx                        ; Green
+        mov ch,al                       ; CH = Green
+        in al,dx                        ; Blue
+        mov dh,al                       ; DH = Blue
+        ; разрешаем прерывания (хотя это и так сделает POPF)
         sti
-        mov     dl, ch          ; g
-        mov     al, cl          ; restore color
+        mov dl,ch                       ; DL = Green
+        mov al,cl                       ; восстанавливаем значение цвета
+        ; восстанавливаем регистры и флаги
         pop     cx
+        popf
         ret
 
 ; Функция отрисовки всех 256 цветов из текущей палитры видеоадаптера.
