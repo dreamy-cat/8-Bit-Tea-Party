@@ -26,6 +26,10 @@
 ;общий файл библиотеки режима Х.
 
 
+;Биты, задающие масштаб, в параметрах функций VXPrintChar и VXPrintString
+CHAR_SCALE_MASK         EQU 00001111b
+
+
 vx_cursor_x     dw 0000h        ;Левая точка позиции курсора, 0..319.
 vx_cursor_y     dw 0000h        ;Верхняя точка позиции курсора, 0..239.
 vx_font_addr    dd 00000000h    ;Полный адрес шрифта, смещение и сегмент.
@@ -35,8 +39,6 @@ vx_font_char_b  db 00h          ;Количество байт на один символ.
 vx_font_width   db 00h          ;Ширина символа в точках.
 vx_font_height  db 00h          ;Высота символа в линиях.
 
-;Биты, задающие масштаб, в параметрах функций VXPrintChar и VXPrintString
-SYMBOL_SCALE_MASK EQU 00001111b
 
 ;Если потребуются вспомогательные процедуры работы со шрифтом, то добавляй
 ;временно прямо сюда, если что подумаем позже об отдельном файле. VXFontLoad.
@@ -165,7 +167,7 @@ PrntChr0:
         add si,ax
 
         mov ch,bh                       ; битовые параметры
-        and ch,SYMBOL_SCALE_MASK        ; выделяем масштабирование
+        and ch,CHAR_SCALE_MASK          ; выделяем масштабирование
         inc ch                          ; CH = коэфф-т масштабирования
 
         ; проверяем, можно ли полностью вписать символ в текущую позицию на
@@ -249,7 +251,7 @@ PrntChr3:
         lodsb                           ; читаем очередные 8 бит
         mov ah,8                        ; bits = 8
         mov dl,bh                       ; битовые параметры
-        and dl,SYMBOL_SCALE_MASK        ; выделяем масштабирование
+        and dl,CHAR_SCALE_MASK          ; выделяем масштабирование
         inc dl                          ; DL = счетчик повторов = масштаб
 PrntChr4:
         test al,10000000b               ; проверяем очередной бит шрифта
@@ -262,7 +264,7 @@ PrntChr5:
         shl al,1                        ; удаляем бит шрифта из буфера
         dec ah                          ; bits--
         mov dl,bh                       ; битовые параметры
-        and dl,SYMBOL_SCALE_MASK        ; выделяем масштабирование
+        and dl,CHAR_SCALE_MASK          ; выделяем масштабирование
         inc dl                          ; DL = счетчик повторов = масштаб
 PrntChr6:
         dec ch                          ; счетчик пикселей в линии
@@ -282,7 +284,7 @@ PrntChr7:
         mov dx,VGA_SEQUENCER_ADDR
         out dx,ax                       ; пишем в регистр маски
         mov dl,bh                       ; битовые параметры
-        and dl,SYMBOL_SCALE_MASK        ; выделяем масштабирование
+        and dl,CHAR_SCALE_MASK          ; выделяем масштабирование
         inc dl                          ; коэфф-т масштабирования
 PrntChr9:
         mov es:[di],bl                  ; пишем в видеобуфер
@@ -317,7 +319,7 @@ PrntChr8:
         ; влезет ли еще один символ на ту же строку; если нет, спускаемся
         ; на следующую
         mov ch,bh                       ; битовые параметры
-        and ch,SYMBOL_SCALE_MASK        ; выделяем масштабирование
+        and ch,CHAR_SCALE_MASK          ; выделяем масштабирование
         inc ch                          ; коэфф-т масштабирования
         mov dx,[vx_cursor_x]            ; X курсора
         mov al,[vx_font_width]          ; ширина символа
