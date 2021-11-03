@@ -45,7 +45,8 @@ SYMBOL_SCALE_MASK EQU 00001111b
 ;по умолчанию, размер: 8x8.
 ;Вход:  нет;
 ;Выход: измененные глобальные переменные vx_font_*
-LoadDefaultFont:
+
+VXLoadFontBIOS:
         pushf
         push ax
         push bx
