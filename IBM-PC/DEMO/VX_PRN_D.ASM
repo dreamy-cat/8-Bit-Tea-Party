@@ -38,32 +38,30 @@ Lp1:    call near VXPrintChar
 L1:     loop Lp1
 
         ; выводим крупную надпись сверху
-        mov si, msg1
-        ; двигаем курсор
-        mov word [vx_cursor_x],20
+        mov word [vx_cursor_x],20       ; двигаем курсор
         mov word [vx_cursor_y],40
+        mov byte [vx_font_color],7      ; серый цвет
+
         mov ah,5                        ; x6 масштаб
-        mov dl,7                        ; серый цвет
-        cld
-Lp2:    lodsb                           ; читаем очередной символ
-        test al,al                      ; печатаем, пока не ноль
-        jz short L2
-        call near VXPrintChar
-        jmp short Lp2
-L2:
-        ; выводим подпись справа внизу
-        mov si,msg2
-        ; двигаем курсор
-        mov word [vx_cursor_x],120
+        mov al,0                        ; печать до конца строки
+        xor dx,dx                       ; с первого символа
+        mov bx,msg1                     ; адрес строки (структуры)
+        call near VXPrintString         ; вызываем функцию печати
+
+        ; выводим подпись справа внизу (посимвольно)
+        mov word [vx_cursor_x],120      ; двигаем курсор
         mov word [vx_cursor_y],226
-        mov ah,0                        ; x1 масштаб
-        mov dl,5                        ; фиолетовый цвет
-Lp3:    lodsb                           ; читаем очередной символ
-        test al,al                      ; печатаем, пока не ноль
-        jz short L3
-        call near VXPrintChar
-        jmp short Lp3
-L3:
+        mov byte [vx_font_color],5      ; фиолетовый цвет
+
+        mov ah,00100000b                ; x1 масштаб, посимвольный вывод
+        mov al,0                        ; печать до конца строки
+        xor dx,dx                       ; начинаем с первого символа
+        mov bx,msg2                     ; адрес строки (структуры)
+        mov cx,msg2TextEnd - msg2Text   ; число символов в строке
+Lp2:    ; цикл печати символов
+        call near VXPrintString         ; вызываем функцию печати
+        inc dx                          ; переходим к следующему символу
+        loop Lp2
 
         mov ah,00h
         int 16h
@@ -71,8 +69,18 @@ L3:
         popf
         ret
 
-msg1    db "Hello World!", 0
-msg2    db "8-Bit Tea Party rulezz!", 0
+msg1            dw msg1TextEnd - msg1Text
+                dw msg1Text - msg1
+msg1Text        db "Hello World!"
+msg1TextEnd:
+
+msg2            dw msg2TextEnd - msg2Text
+                dw msg2Text - msg2
+                db 1                    ; некоторые дополнительные данные
+                dw 2
+                dd 3
+msg2Text        db "8-Bit Tea Party rulezz!"
+msg2TextEnd:
 
 %include "VX_SYS.ASM"                   ;Библиотечные процедуры.
 %include "VX_PRINT.ASM"
