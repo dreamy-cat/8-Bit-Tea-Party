@@ -42,6 +42,8 @@ vx_font_char_b  db 00h          ;Количество байт на один символ.
 vx_font_width   db 00h          ;Ширина символа в точках.
 vx_font_height  db 00h          ;Высота символа в линиях.
 
+vx_font_color   db 00h          ;Глобальный цвет для печати по-умолчанию.
+vx_font_bkg     db 00h          ;Глобальный цвет фона, пока резерв.
 
 
 ;Загружаем в глобальные переменные адрес и прочие данные системного шрифта
@@ -68,6 +70,8 @@ VXLoadFontBIOS:
         mov byte [vx_font_char_b],8     ; байтов на один символ
         mov byte [vx_font_width],8      ; ширина символа
         mov byte [vx_font_height],8     ; высота символа
+        mov byte [vx_font_color],7      ; цвет шрифта, серый по умолчанию
+        mov byte [vx_font_bkg],0        ; цвет фона
 
         pop es
         pop bp
