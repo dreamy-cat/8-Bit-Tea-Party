@@ -64,6 +64,7 @@
 
 
 %include "VGA-X.ASM"    ;NASM, include header of library.
+%include "VX_DAC.ASM"   ;because of VXSetPalColor call in VXSetFullDAC
 
 
 ;Global data for all VGA-X procedures, using memory.
