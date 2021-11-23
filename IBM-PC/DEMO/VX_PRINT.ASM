@@ -40,6 +40,7 @@ vx_font_first_c db 00h          ;Код первого символа в шрифте.
 vx_font_chars   db 00h          ;Количество символов в шрифте, 0 = 256.
 vx_font_char_b  db 00h          ;Количество байт на один символ.
 vx_font_width   db 00h          ;Ширина символа в точках.
+vx_font_width_t db 0100h dup (08h)      ;Таблица ширины символов.
 vx_font_height  db 00h          ;Высота символа в линиях.
 
 vx_font_color   db 00h          ;Глобальный цвет для печати по-умолчанию.
