@@ -51,6 +51,7 @@ RecTab1:call near VXDrawRect
 ;al - color
 ;ah - diff for color.
 ;bx - адрес координат углов. (верхний левый - правый нижний)
+
 VXDrawRect:              ; Использовать функцию вывода точки.
         pushf
         push ax

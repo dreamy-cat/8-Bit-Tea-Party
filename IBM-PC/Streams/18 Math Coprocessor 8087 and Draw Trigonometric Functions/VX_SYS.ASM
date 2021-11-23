@@ -7,7 +7,6 @@
 ;Быстродействие: примерное количество тактов для каждой процедуры.
 ;Память: процед_1 = N, процед_2 занимает М байт.
 ;Краткая история изменений:
-;20.11.21, А.С.: Добавлена процедура заполнения видеопамяти адаптера.
 ;02.10.21, А.С.: Смена отображаемой и активной страницы теперь одновременно.
 ;25.09.21, А.С.: Небольшие правки по оформлению.
 ;04.09.21, А.С.: Смена видео страниц и синхронизация обратного хода луча:
@@ -75,6 +74,8 @@ vx_scr_display  dw 0000h        ;Смещение отображаемой страницы на экране.
 ;Procedures in alphabetical order.
 ;Процедуры библиотеки в алфавитном порядке.
 
+
+
 ;Procedure set display page, al - 0..2 - page index;(see doc)
 ;Процедура установки активной страницы(смещения) в памяти и страницы
 ;отображения экрана из памяти. Проверка на допустимость выполняется для
@@ -119,53 +120,6 @@ SAcDiP0:pop dx
         pop ax
         popf
         ret
-
-;Процедура очистки всей страницы экрана в режиме Х. Простая проверка на ноль.
-;Желательно не использовать вызовы дополнительных процедур.
-;Вход:
-;AL     индекс цвета для очистки всего экрана, 0..255;
-;AH     биты:
-;0..2   каждый бит если установлен, то очистить соответствующую страницу;
-;3      заполнить-ли оставшийся хвост от 256Кб, 31744 байта;
-;4..7   резерв.
-;Выход: заполненная видеопамять VGA.
-
-VXClearVRAM:
-        pushf
-        push ax
-        push cx
-        push dx
-        push es
-        mov dx,GFX_SCR_ADDR
-        mov es,dx
-        mov dh,ah
-        mov dl,dh
-        and dx,0000100000000111b
-        mov ah,al
-        mov al,00001111b
-        call near VXSetPlanes
-        xor di,di
-        cld
-ClVRAM3:shr dl,1
-        jnc short ClVRAM1
-        mov cx,GFX_PLANE_SIZE_W
-        rep stosw
-        jmp short ClVRAM2
-ClVRAM1:add di,GFX_PLANE_SIZE_B
-ClVRAM2:test dl,dl
-        jnz short ClVRAM3
-        test dh,dh
-        jz short ClVRAM4
-        mov cx,di
-        neg cx
-        rep stosw
-ClVRAM4:pop es
-        pop dx
-        pop cx
-        pop ax
-        popf
-        ret
-
 
 ; Установка видео-режима 'Mode-Х', разрешением 320 240 точек и 256 цветов по таблице.
 ;Краткая версия процедуры, в основе вещания и книги М.Абраша.
@@ -322,59 +276,13 @@ VXWaitVSync:
 WaitV1: in al,dx                 ;if we in vsync signal. (Abrash)
         and al,00001000b         ;for DAC read.
         jnz short WaitV1
-WaitV2: in al,dx                 ;Do faster version.
+WaitV2: in al,dx
         and al,00001000b
         jz short WaitV2
         pop dx
         pop ax
         popf
         ret
-
-
-; Функция установки (замены) одиночного цвета в палитре видеоадаптера.
-; Назначает цвету с заданным индексом новые компоненты: Read, Green, Blue.
-; Вход:
-; AL    индекс цвета
-; AH    Red
-; DL    Green
-; DH    Blue
-; VXSetPalColor:
-
-;Set all possible VGA colors of each componet RGB in 6 bits colors(0..63).
-
-VXSetFullDAC:
-        pushf
-        push ax
-        push dx
-        xor ax,ax
-        xor dx,dx
-SetFD0: call near VXSetPalColor
-        cmp al,40h
-        jnc short SetFD1
-        inc ah            ;next red
-        and ah,00111111b
-        jmp short SetFD4
-SetFD1: cmp al,80h
-        jnc short SetFD2
-        inc dl            ;next green
-        and dl,00111111b
-        jmp short SetFD4
-SetFD2: cmp al,0C0h
-        jnc short SetFD3
-        inc dh            ;next blue
-        and dh,00111111b
-        jmp short SetFD4
-SetFD3: inc ah
-        inc dl
-        inc dh
-SetFD4: inc al
-        test al,al
-        jnz  short SetFD0
-        pop dx
-        pop ax
-        popf
-        ret
-
 
 
 ;Процедура установки режима Х, с учетом всех параметров адаптера, которые
