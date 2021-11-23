@@ -62,17 +62,17 @@ VXLoadFontBIOS:
         push es
 
         mov ax,1130h                    ; получить параметры шрифта из BIOS
-        mov bh,3                        ; выбираем шрифт 8x8
+        mov bh,03h                      ; выбираем шрифт 8x8
         int 10h
         mov ax,es
         mov [vx_font_addr],ax           ; сегмент данных шрифта
-        mov [vx_font_addr + 2],bp       ; смещение данных шрифта
-        mov byte [vx_font_chars],0      ; количество символов в шрифте, 0=256
-        mov byte [vx_font_char_b],8     ; байтов на один символ
-        mov byte [vx_font_width],8      ; ширина символа
-        mov byte [vx_font_height],8     ; высота символа
-        mov byte [vx_font_color],7      ; цвет шрифта, серый по умолчанию
-        mov byte [vx_font_bkg],0        ; цвет фона
+        mov [vx_font_addr + 02h],bp     ; смещение данных шрифта
+        mov byte [vx_font_chars],00h    ; количество символов в шрифте, 0=256
+        mov byte [vx_font_char_b],08h   ; байтов на один символ
+        mov byte [vx_font_width],08h    ; ширина символа
+        mov byte [vx_font_height],08h   ; высота символа
+        mov byte [vx_font_color],07h    ; цвет шрифта, серый по умолчанию
+        mov byte [vx_font_bkg],00h      ; цвет фона
 
         pop es
         pop bp
@@ -142,10 +142,10 @@ VXPrintString:
         ; определяем эффективное количество символов, которое будем печатать
         test bh,00100000b               ; режим одиночного символа
         jz short PrntStr0
-        mov cx,1                        ; печатаем один символ
+        mov cx,01h                      ; печатаем один символ
         jmp short PrntStr1
 PrntStr0:
-        mov ah,0                        ; обнулили старший байт
+        mov ah,00h                      ; обнулили старший байт
         test ax,ax                      ; если счетчик равен нулю,
         jz short PrntStr1               ; то не обрезаем строку
         cmp ax,cx                       ; сравниваем счетчик с исходной длиной
@@ -242,7 +242,7 @@ PrntChr0:
 
         ; находим адрес образа нужного символа:
         ; addr = (code-first_code)*symbol_size + font_addr
-        mov si,[vx_font_addr + 2]       ; смещение шрифта
+        mov si,[vx_font_addr + 02h]     ; смещение шрифта
         sub al,cl                       ; code - first_code
         mov dl,[vx_font_char_b]         ; ширина символа в байтах
         mul dl
@@ -276,8 +276,8 @@ PrntChr0:
         mov ax,dx                       ; Y курсора
         mov dx,GFX_BYTES_PER_LINE
         mul dx
-        shr di,1                        ; X курсора >> 2
-        shr di,1
+        shr di,01h                      ; X курсора >> 2
+        shr di,01h
         add di,ax
         add di,[vx_scr_active]          ; начало активной видеостраницы
 
@@ -316,7 +316,7 @@ PrntChr0:
 
         ; AL - битовый буфер для чтения шрифта
         ; AH - текущее количество битов в нем
-        mov ah,0
+        mov ah,00h
 
 PrntChr1:
         ; рисуем следующую линию шрифта
@@ -326,7 +326,7 @@ PrntChr1:
 
 PrntChr2:
         ; формируем маску битовых планов для очередного блока пикселей
-        mov dh,0                        ; DH = маска
+        mov dh,00h                      ; DH = маска
 
 PrntChr3:
         test ah,ah                      ; есть ли данные в буфере шрифта?
@@ -341,10 +341,10 @@ PrntChr4:
         jz short PrntChr5
         or dh,cl                        ; устанавливаем бит маски
 PrntChr5:
-        shl cl,1                        ; сдвигаем бит-модификатор маски
+        shl cl,01h                      ; сдвигаем бит-модификатор маски
         dec dl                          ; счетчик повторов (для масштаба)
         jnz short PrntChr6
-        shl al,1                        ; удаляем бит шрифта из буфера
+        shl al,01h                      ; удаляем бит шрифта из буфера
         dec ah                          ; bits--
         mov dl,bh                       ; битовые параметры
         and dl,CHAR_SCALE_MASK          ; выделяем масштабирование
