@@ -136,7 +136,7 @@ VXPrintString:
         mov cx,[bx]                     ; CX = длина строки
         jcxz PrntStrR                   ; если пустая строка, то выходим
         sub cx,dx                       ; если начальный символ за пределами
-        jc short PrntStrR               ; строки, то выходим
+        jbe short PrntStrR              ; строки, то выходим
         mov si,[bx + 02h]               ; смещение потока символов
         add si,bx                       ; + адрес строки
         add si,dx                       ; SI = адрес первого символа
