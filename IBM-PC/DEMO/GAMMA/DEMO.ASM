@@ -41,7 +41,7 @@ DEMO_FADE_SPEED EQU 001h                ;Скорость работы эффекта появления и
         mov ah,0Fh                      ; get current mode
         int 10h
         mov [prev_video_mode],al
-        
+
         call near VXSetModeX            ;Init gfx, set pages and clear VRAM.
         xor al,al
         call near VXSetActDispPage
@@ -82,23 +82,31 @@ t1:     ;mov al,ah
         ;jz short t1
 
         call near IntroVGAX
+        call near WasKeyPressed
+        jc short DemoR
         call near ScreenFadeOut
 
         mov ax,00100h
         call near VXClearVRAM
         call near Space3D
+        call near WasKeyPressed
+        jc short DemoR
         call near ScreenFadeOut
 
         mov ax,00100h
         call near VXClearVRAM
         call near AnimatedCosinus
+        call near WasKeyPressed
+        jc short DemoR
         call near ScreenFadeOut
 
         mov ax,00100h
         call near VXClearVRAM
         call near FlamesOutro
+        call near WasKeyPressed
+        jc short DemoR
 
-        jmp short DemoR
+        jmp short DemoWait
 
 ;Testing copy page.
 
@@ -120,18 +128,58 @@ t1:     ;mov al,ah
         ;mov al,00001000b
         ;call near VXCopyPage
 
-DemoR:  mov ah,00h                      ;Press any key.
+DemoWait:
+        mov ah,00h                      ;Press any key.
         int 16h
-
+DemoR:
         ; restore video mode
         mov ah,0
         mov al,[prev_video_mode]
         int 10h
-        
+
         popf
         ret
 
 prev_video_mode db 0
+key_pressed     db 0
+
+; Проверка нажатия клавиши
+; In:   -
+; Out:  флаг CF установлен, если было зарегистрировано нажатие любой клавиши
+WasKeyPressed:
+        pushf
+        push ax
+        push bx
+        push cx
+        push dx
+
+        mov al,[key_pressed]
+        test al,al
+        jnz short WKPTrue
+
+        mov ah,01h                      ; check for keystroke
+        int 16h
+        jz short WKPFalse
+        mov ah,00h                      ; get keystroke (clear buffer)
+        int 16h
+        mov byte [key_pressed],1
+WKPTrue:
+        pop dx
+        pop cx
+        pop bx
+        pop ax
+        popf
+        stc
+        ret
+
+WKPFalse:
+        pop dx
+        pop cx
+        pop bx
+        pop ax
+        popf
+        clc
+        ret
 
 ;Using copy page procedure.
         ;mov ax,0100h
@@ -256,9 +304,11 @@ Intro6:
         pop ax                          ;Restore text counter.
 Intro3: pop bx
         pop cx
+        call near WasKeyPressed
+        jc short IntroR
         loop Intro2
 
-        pop bp
+IntroR: pop bp
         pop di
         pop si
         pop dx
@@ -481,13 +531,15 @@ Space1: push cx
         inc bp
 Space3: pop ax
         pop bx
+        call near WasKeyPressed
+        jc short SpaceR
         loop Space1                             ;Main cycle.
 
         add di,0006h
         dec bh
         jnz short Space2
 
-        pop bp
+SpaceR: pop bp
         pop di
         pop si
         pop dx
@@ -911,10 +963,12 @@ DrSCP1: call near VXPrintString
         mov word [vx_cursor_x],MATH_TXT_X1
         mov word [vx_cursor_y],MATH_TXT_Y1
 DrSCP2:
+        call near WasKeyPressed
+        jc short DrSCR
         dec bp
         jnz DrSCC
 
-        pop bp
+DrSCR:  pop bp
         pop di
         pop si
         pop dx
@@ -1434,6 +1488,8 @@ Flame7: ;mov byte [di],03Fh
         pop ax
         pop bx
 
+        call near WasKeyPressed
+        jc short Dem0
         dec bp
         jnz FlameA
 
