@@ -38,6 +38,10 @@ DEMO_FADE_SPEED EQU 001h                ;Скорость работы эффекта появления и
         org 100h                        ;PSP.
         pushf
 
+        mov ah,0Fh                      ; get current mode
+        int 10h
+        mov [prev_video_mode],al
+        
         call near VXSetModeX            ;Init gfx, set pages and clear VRAM.
         xor al,al
         call near VXSetActDispPage
@@ -118,8 +122,16 @@ t1:     ;mov al,ah
 
 DemoR:  mov ah,00h                      ;Press any key.
         int 16h
+
+        ; restore video mode
+        mov ah,0
+        mov al,[prev_video_mode]
+        int 10h
+        
         popf
         ret
+
+prev_video_mode db 0
 
 ;Using copy page procedure.
         ;mov ax,0100h
