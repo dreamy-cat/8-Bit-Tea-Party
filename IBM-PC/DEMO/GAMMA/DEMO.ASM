@@ -1383,7 +1383,7 @@ PalFl5: loop PalFl6
 Start:  mov ax,GFX_SCR_ADDR
         mov es,ax
         cld
-        mov bp,FLAME_TIMER              ;Main cycle.
+;        mov bp,FLAME_TIMER              ;Main cycle.
         mov dx,1Ah
 
         mov word [vx_cursor_x],FLAME_TXT_X1
@@ -1478,6 +1478,8 @@ Flame7: ;mov byte [di],03Fh
         jnz Flame3
 
         pop dx
+        cmp dx,[flame_outro_txt]
+        jnb short Flame8
         push bx                                 ;
         push ax
         lea bx,flame_outro_txt
@@ -1488,10 +1490,11 @@ Flame7: ;mov byte [di],03Fh
         pop ax
         pop bx
 
-        call near WasKeyPressed
+Flame8: call near WasKeyPressed
         jc short Dem0
-        dec bp
-        jnz FlameA
+;        dec bp
+;        jnz FlameA
+        jmp near FlameA
 
 Dem0:   pop es
         pop bp
