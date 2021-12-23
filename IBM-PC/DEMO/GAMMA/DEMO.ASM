@@ -216,15 +216,16 @@ INTRO_LINE_Y2   EQU 000B4h              ;180.
 ; История: ВГА Моде-Х. Разрешение 320 на 240 точек и 256 цветов.
 ;Палитра адаптера 256К цветов, по 6 бит на компонент.
 
-vga_intro_txt   dw 00E8h
+vga_intro_txt   dw vga_intro_txt_e - vga_intro_txt_b
                 dw 0004h
-                db '     WELCOME TO     '
+vga_intro_txt_b db '     WELCOME TO     '
                 db '     TEA PARTY!'            ;Add space to config.
                 db ' While creating game engine for 8086 CPU'
-                db 'and VGA famous Mode-X our team released '
+                db 'and famous VGA Mode X our team released '
                 db 'various classic effects of demoscene!   '
                 db ' Resolution: 320x240 pixels, 256 colors;'
-                db ' Palette: 256K and 6-bit RGB component. '
+                db ' Palette: 256K, 6 bits per RGB component'
+vga_intro_txt_e:
 
 IntroVGAX:
         pushf
@@ -416,14 +417,15 @@ stars_move:     dw 0h, 0h, -03h
 ; Структура режима Х: Три видеостраницы по 75 и 31 свободных килобайта.
 ;
 
-space_3D_txt    dw 00F0h
+space_3D_txt    dw space_3D_txt_e - space_3D_txt_b
                 dw 0004h
-                db ' Elementary 3D Space, filled with stars '
-                db 'and using both video pages with V-Sync. '
+space_3D_txt_b  db ' Elementary 3D Space, filled with stars '
+                db ' and using two video pages with V-Sync. '
                 db ' Who is the Dangerous in Elite?! :)     '
-                db ' VRAM is 256Kb contains four bit-planes '
-                db 'with some hardware acceleration tricks. '
+                db ' 256Kb of VRAM contains four bit-planes '
+                db ' with some hardware acceleration hints. '
                 db ' Mode-X: 3 pages of 75Kb and 31Kb free. '
+space_3D_txt_e:
 
 Space3D:
         pushf
@@ -756,16 +758,17 @@ screen_size_y   dw DRAW_FUNC_SIZE
 fpu_data        dw 10h dup (0)
 scr_y_cos_tab   dw DRAW_COS_WIDTH dup (0000h)
 
-anim_cos_txt    dw 00CAh
+anim_cos_txt    dw anim_cos_txt_e - anim_cos_txt_b
                 dw 0004h
-                db '  REALTIME MATH ON  '
+anim_cos_txt_b  db '  REALTIME MATH ON  '
                 db '  8087 COPROCESSOR'            ;Add space to config.
                 db ' Color animation of trigonometric cosine'
-                db 'creating by slow formula of tangent and '
-                db 'square root, but fully on mathematical  '
+                db 'calculated by slow formula via tangent  '
+                db 'and square root, fully on mathematical  '
                 db 'coprocessor. 8086 became an artist...:) '
                 db '                                        '
                 ;db ' Precision: 32-bit single, real.        '
+anim_cos_txt_e:
 
 fpu_state       dw 0
 
@@ -1295,21 +1298,22 @@ FLAME_TXT_COL2          EQU 00Fh
 
 back_rect       dw 0000h, 009Fh, 013Fh, 00EFh   ;Background for text.
 
-flame_outro_txt dw 01AAh
+flame_outro_txt dw flame_outro_txt_e - flame_outro_txt_b
                 dw 0004h
+flame_outro_txt_b:
                 db '    8-BIT    '
                 db '  TEA PARTY  '            ;Add space to config.
                 db '   Classic flame using fast shifts...   '
-                db ' Create special for Demodulation 2021,  '
+                db 'Created specially for Demodulation 2021,'
                 db '          by 8-Bit Tea Party!           '
-                db '    Thanks for watching and good Tea!   '
+                db ' Thanks for watching! Have a nice Tea!  '
                 db '                                        '
                 db '  Code: Alexander Serov, Danila Peroff  '
                 db '           and Danya Potapov.           '
                 db '      Organizer: Dmitry Galashin.       '
                 db ' Thanks to our friends: Andrew, Vasily, '
                 db 'Vovan, Eugene, Konstantin, Roman and...!'
-
+flame_outro_txt_e:
 
 ;Классика пламени с быстрыми сдвигами и арифметкой.
 
