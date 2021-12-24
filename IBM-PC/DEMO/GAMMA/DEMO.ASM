@@ -140,7 +140,6 @@ DemoR:
         popf
         ret
 
-prev_video_mode db 0
 key_pressed     db 0
 
 ; Проверка нажатия клавиши
@@ -393,11 +392,6 @@ SPACE_MASK_X    EQU 1FFFh               ;Mask for horizontal star position.
 SPACE_MASK_Y    EQU 1FFFh               ;Mask for vertical star position.
 SPACE_MASK_Z    EQU 00FFh               ;Mask for star depth.
 SPACE_MULT      EQU 0080h               ;Factor for XY.
-
-
-;3 words with parameters X,Y,Z and reserved word.
-
-stars_xyz:      dw 4 * SPACE_STARS dup (0000h)   ;In every direction.
 
 stars_move:     dw 0h, 0h, -03h
                 dw 0h, SPACE_MULT, 0h
@@ -755,8 +749,6 @@ pi_74           dd 5.50
 pi_84           dd 6.28                 ;May be plus 1 or equal.
 value_tg        dd 0.0
 screen_size_y   dw DRAW_FUNC_SIZE
-fpu_data        dw 10h dup (0)
-scr_y_cos_tab   dw DRAW_COS_WIDTH dup (0000h)
 
 anim_cos_txt    dw anim_cos_txt_e - anim_cos_txt_b
                 dw 0004h
@@ -1069,11 +1061,6 @@ RMove3: loop RMove2
         pop ax
         popf
         ret
-
-;Rectangles left-top and right-bottom pixels and color.
-
-rects_data      dw RECTS_SCREEN * 4 dup (0000h)
-rects_color     db RECTS_SCREEN dup (00h)
 
 ;Полноэкранное смещение активной страницы вверх на количество точек и
 ;заполнение освободившегося пространства по правилам. Не используется смещение
@@ -1394,6 +1381,14 @@ Start:  mov ax,GFX_SCR_ADDR
         mov word [vx_cursor_y],FLAME_TXT_Y1
         mov byte [vx_font_color],FLAME_TXT_COL2
 
+; очищаем буфер пламени
+        lea di,flame_data
+        mov cx,FLAME_SIZE
+        xor ax,ax
+FlameZ: mov [di],al
+        inc di
+        loop FlameZ
+
 FlameA: push dx
         mov di,FLAME_SCR_ADDR
         lea si,flame_data
@@ -1653,5 +1648,22 @@ CopyPg4:mov al,[di]
 %include "vx_print.asm"
 %include "vx_lines.asm"
 
-;To speed up assembly, remove.
-flame_data      db FLAME_SIZE dup (00h)
+; === Uninitialized data ===
+section .bss                            ; NASM is strange
+
+prev_video_mode resb 1
+
+; Space 3D
+;3 words with parameters X,Y,Z and reserved word.
+stars_xyz       resw 4 * SPACE_STARS    ;In every direction.
+
+; Cosin
+fpu_data        resw 10h
+scr_y_cos_tab   resw DRAW_COS_WIDTH
+
+;Rectangles left-top and right-bottom pixels and color.
+rects_data      resw RECTS_SCREEN * 4
+rects_color     resb RECTS_SCREEN
+
+; Outro
+flame_data      resb FLAME_SIZE
