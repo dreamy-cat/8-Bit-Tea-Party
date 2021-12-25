@@ -703,6 +703,8 @@ anim_cos_txt    dw 00CAh
                 db '                                        '
                 ;db ' Precision: 32-bit single, real.        '
 
+fpu_state       dw 0
+
 ;Математика в реальном времени на сопроцессоре 8087.
 ;Анимация тригонометрической функции косинуса и палитры цвета
 ;рассчитывается по медленной формуле через тангенс и извлечение
@@ -764,16 +766,30 @@ DrSC2:  ;fld dword [value_tg]
 
         fld dword [value_x]             ;Position X.
         fcom dword [pi_12]
-        fstenv [fpu_data]
-        mov ax,[fpu_data+02h]           ;C0,C1 == 0 for ST0 > DATA, 8,10 bits.
-        test ax,0500h
-        jnz short DrSC1
+;        fstenv [fpu_data]
+;        mov ax,[fpu_data+02h]           ;C0,C1 == 0 for ST0 > DATA, 8,10 bits.
+;        test ax,0500h
+;        jnz short DrSC1
+; Сохраняем регистр SWR сопроцессора в память, чтобы потом считать в AX.
+; На старших моделях FPU можно сразу сделать fstsw ax
+        fstsw word [fpu_state]
+        mov ax,[fpu_state]
+; Загружаем флаги из регистра AH, флаги C0, C2, C3 из FPU при этом попадают
+; в CF, PF, ZF соответственно. После этого можно использовать привычные
+; условные переходы, предполагая, что fcom всегда сравнивает ST0 с операндом,
+; то есть фактически имеет вид: fcom ST0, argument
+        sahf
+        jbe short DrSC1                 ; ST0 <= Src (pi/2)
 
         fcom dword [pi_64]              ;
-        fstenv [fpu_data]
-        mov ax,[fpu_data+02h]
-        test ax,0500h
-        jz short DrSC1
+;        fstenv [fpu_data]
+;        mov ax,[fpu_data+02h]
+;        test ax,0500h
+;        jz short DrSC1
+        fstsw word [fpu_state]
+        mov ax,[fpu_state]
+        sahf
+        ja short DrSC1                 ; ST0 > Src (pi*6/4)
 
         ;jmp short DrSC1
 
