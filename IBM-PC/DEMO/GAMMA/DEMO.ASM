@@ -42,6 +42,14 @@ DEMO_FADE_SPEED EQU 001h                ;Скорость работы эффекта появления и
         int 10h
         mov [prev_video_mode],al
 
+        ; resize program segment
+        mov ah,4Ah                      ;Resize memory segment.
+        mov bx,1000h                    ;16 bytes multiply 4k = 64kb.
+        int 21h
+        jnc short Demo0
+        jmp near DemoR
+Demo0:
+
         call near VXSetModeX            ;Init gfx, set pages and clear VRAM.
         xor al,al
         call near VXSetActDispPage
@@ -86,22 +94,21 @@ t1:     ;mov al,ah
         jc short DemoR
         call near ScreenFadeOut
 
-        mov ax,00100h
-        call near VXClearVRAM
         call near Space3D
         call near WasKeyPressed
         jc short DemoR
         call near ScreenFadeOut
 
-        mov ax,00100h
-        call near VXClearVRAM
         call near AnimatedCosinus
         call near WasKeyPressed
         jc short DemoR
         call near ScreenFadeOut
 
-        mov ax,00100h
-        call near VXClearVRAM
+        call near Plasma
+        call near WasKeyPressed
+        jc short DemoR
+        call near ScreenFadeOut
+
         call near FlamesOutro
         call near WasKeyPressed
         jc short DemoR
@@ -430,6 +437,9 @@ Space3D:
         push si
         push di
         push bp
+
+        mov ax,0300h                    ; pages 0, 1
+        call near VXClearVRAM
 
         xor ax,ax
         xor dx,dx
@@ -781,6 +791,8 @@ AnimatedCosinus:
         push di
         push bp
 
+        mov ax,0100h                    ; page 0
+        call near VXClearVRAM
         call near VXSetFullDAC
         mov ax,0FFC0h
         mov dx,0FFFFh
@@ -1260,8 +1272,372 @@ CrRect2:mov [di + 06h],dx
         popf
         ret
 
+;5. Плазма
 
-;5. Горящее пламя, авторы, ссылки и завершение.
+PLASMA_LEFT             EQU 0
+PLASMA_TOP              EQU (GFX_SCR_HEIGHT - PLASMA_HEIGHT) / 2
+PLASMA_WIDTH            EQU GFX_SCR_WIDTH
+PLASMA_HEIGHT           EQU 40h
+PLASMA_WIDTH_MASK       EQU 01FFh       ; 2^roundup(log2(PLASMA_WIDTH)) - 1
+PLASMA_HEIGHT_MASK      EQU 007Fh       ; 2^roundup(log2(PLASMA_HEIGHT)) - 1
+PLASMA_LOOP_COUNT       EQU 385
+PLASMA_TEXT_X           EQU PLASMA_LEFT
+PLASMA_TEXT_Y           EQU 0B0h ;PLASMA_TOP + PLASMA_HEIGHT + 5
+PLASMA_TEXT_COLOR       EQU 63
+
+plasma_txt      dw plasma_txt_e - plasma_txt_b
+                dw 0004h
+plasma_txt_b    db 'This effect using the coprocessor for   '
+                db 'table initialization. Heavily optimized '
+                db 'but still resource intensive.           '
+                db 'Feel the warmth of our plasma, born in  '
+                db 'the snowy winter 2021-2022! :)'
+plasma_txt_e:
+
+plasma_A        dd 5.0
+plasma_B        dd 15.0
+
+Plasma:
+        pushf
+        push ax
+        push bx
+        push cx
+        push dx
+        push si
+        push di
+        push bp
+        push es
+
+        cld
+
+        mov ax,0300h                    ; pages 0, 1
+        call near VXClearVRAM
+
+        ; set palette
+        xor ax,ax                       ; i,r = 0
+        xor dx,dx                       ; g,b = 0
+        call near VXSetPalColor
+        inc al
+PlasmaPalLp1:
+        mov ah,63                       ; r = 63
+        mov dl,al
+        shl dl,1                        ; g = i*2
+        mov dh,0                        ; b = 0
+        call near VXSetPalColor
+        inc al
+        cmp al,32
+        jb short PlasmaPalLp1
+PlasmaPalLp2:
+        mov ah,63
+        sub ah,al
+        shl ah,1                        ; r = (63-i)*2
+        mov dl,63                       ; g = 63
+        mov dh,0                        ; b = 0
+        call near VXSetPalColor
+        inc al
+        cmp al,64
+        jb short PlasmaPalLp2
+
+        ; allocate memory for table
+        mov ah,48h
+        mov bx,(PLASMA_WIDTH * PLASMA_HEIGHT / 16) + 1
+        int 21h
+        jnc short Plasma0
+        jmp near PlasmaR
+Plasma0:
+        mov es,ax
+
+        ; init FPU
+        finit
+        fstcw word [control_reg]
+        mov ax,[control_reg]
+        ; Рrecision Соntrol = 00b - single precision
+        ; Rounding Control = 00b - round to nearest value
+        and ah,11110000b
+        mov [control_reg],ax
+        fldcw [control_reg]             ;round 32-bits
+
+        ; fill plasma table
+        xor di,di                       ; addr in table
+        xor dx,dx                       ; y
+PlasmaLp1:
+        xor cx,cx                       ; x
+PlasmaLp2:
+        ; Table[y,x] = Round(sin(sqrt(sqr(x)+sqr(y))/A)*B);
+        mov [plasma_temp],cx            ; x
+        fild word [plasma_temp]         ; x
+        fmul ST0,ST0                    ; x^2
+        mov [plasma_temp],dx            ; y
+        fild word [plasma_temp]         ; y | x^2
+        fmul ST0,ST0                    ; y^2 | x^2
+        faddp ST1,ST0                   ; x^2+y^2
+        fsqrt                           ; sqrt(x^2+y^2)
+
+        fld dword [plasma_A]            ; A | sqrt(x^2+y^2)
+        fdivp ST1,ST0                   ; sqrt(x^2+y^2) / A
+
+        ; sinus
+        fld ST0                         ; arg | arg
+        fptan                           ; 1 | tg | arg
+        fld ST1                         ; tg | 1 | tg | arg
+        fmul ST0,ST0                    ; tg^2 | 1 | tg | arg
+        faddp ST1,ST0                   ; 1 + tg^2 | tg | arg
+        fsqrt                           ; sqrt(1 + tg^2) | tg | arg
+        fdivp ST1,ST0                   ; tg / sqrt(1 + tg^2) | arg
+        fabs                            ; sin = abs(tg / sqrt(1 + tg^2)) | arg
+        fxch                            ; arg | sin
+        fldpi                           ; pi | arg | sin
+        fxch                            ; arg | pi | sin
+        fprem                           ; mod(arg / pi) | pi | sin
+        ; can't use fstsw ax on 8087 :(
+        fstsw word [plasma_temp]
+        fincstp                         ; pi | sin
+        fincstp                         ; sin
+        mov ax,[plasma_temp]
+        test ah,00000010b               ; test C1 flag, C1 = low bit(arg/pi)
+        jz short Plasma1
+        fchs                            ; -sin
+Plasma1:
+
+        fld dword [plasma_B]
+        fmulp ST1,ST0                   ; sin * B
+
+        frndint
+        fistp word [plasma_temp]
+        mov al,[plasma_temp]            ; signed word -> signed byte
+        stosb                           ; table[y,x] = value
+
+        inc cx                          ; x++
+        cmp cx,PLASMA_WIDTH
+        jb short PlasmaLp2
+
+        inc dx                          ; y++
+        cmp dx,PLASMA_HEIGHT
+        jb short PlasmaLp1
+
+        ; fill arrays x[], y[]
+        xor si,si
+PlasmaLp3:
+        ; x[i] = Random(PLASMA_WIDTH)
+PlasmaNextX:
+        xor ax,ax
+        call near RandomSimple
+        and ax,PLASMA_WIDTH_MASK
+        cmp ax,PLASMA_WIDTH
+        jae short PlasmaNextX
+        mov [plasma_x + si],ax
+
+        ; y[i] = Random(PLASMA_HEIGHT) * PLASMA_WIDTH
+PlasmaNextY:
+        xor ax,ax
+        call near RandomSimple
+        and ax,PLASMA_HEIGHT_MASK
+        cmp ax,PLASMA_HEIGHT
+        jae short PlasmaNextY
+        mov dx,PLASMA_WIDTH
+        mul dx
+        mov [plasma_y + si],ax
+
+        inc si
+        inc si
+        cmp si,4*2
+        jb short PlasmaLp3
+
+        ; fill arrays h[], v[]
+        xor ax,ax
+        call near RandomSimple
+        mov dx,ax
+        xor si,si
+PlasmaLp4:
+        ; h[i] = +1/-1 (random)
+        mov ax,0001h
+        shr dx,1
+        jc short PlasmaStoreH
+        neg ax
+PlasmaStoreH:
+        mov [plasma_h + si],ax
+
+        ; h[i] = +PLASMA_WIDTH/-PLASMA_WIDTH (random)
+        mov ax,0001h * PLASMA_WIDTH
+        shr dx,1
+        jc short PlasmaStoreV
+        neg ax
+PlasmaStoreV:
+        mov [plasma_v + si],ax
+
+        inc si
+        inc si
+        cmp si,4*2
+        jb short PlasmaLp4
+
+        mov word [vx_cursor_x],PLASMA_TEXT_X
+        mov word [vx_cursor_y],PLASMA_TEXT_Y
+        mov byte [vx_font_color],PLASMA_TEXT_COLOR
+
+        mov cl,00000001b                ; video pages: 0 - visible, 1 - active
+        xor bp,bp                       ; main loop counter
+; === Main loop ===
+PlasmaMainLp:
+        push cx
+        push bp
+
+        mov al,cl
+        call near VXSetActDispPage
+        call near VXWaitVSync
+
+        xor si,si
+PlasmaLp6:
+        mov ax,[plasma_x + si]          ; x
+        cmp ax,1
+        ja short Plasma2
+        mov word [plasma_h + si],0001h
+Plasma2:
+        cmp ax,PLASMA_WIDTH - 2
+        jb short Plasma3
+        mov word [plasma_h + si],0FFFFh ; -1
+Plasma3:
+        add ax,[plasma_h + si]
+        mov [plasma_x + si],ax          ; x[i] += h[i]
+
+        mov ax,[plasma_y + si]          ; premultiplied y
+        cmp ax,1 * PLASMA_WIDTH
+        ja short Plasma4
+        mov word [plasma_v + si],0001h * PLASMA_WIDTH
+Plasma4:
+        cmp ax,(PLASMA_HEIGHT - 2) * PLASMA_WIDTH
+        jb short Plasma5
+        mov word [plasma_v + si], -1 * PLASMA_WIDTH
+Plasma5:
+        add ax,[plasma_v + si]
+        mov [plasma_y + si],ax          ; y[i] += v[i]
+
+        inc si
+        inc si
+        cmp si,4*2
+        jb short PlasmaLp6
+
+;  for (y=0; y<200; y++)
+;    for (x=0; x<320; x++)
+;      Screen[y,x] = abs(
+;        Table[abs(x-x[0]), abs(y-y[0])] +
+;        Table[abs(x-x[1]), abs(y-y[1])] +
+;        Table[abs(x-x[2]), abs(y-y[2])] +
+;        Table[abs(x-x[3]), abs(y-y[3])]
+;      ) + 1;
+
+        push ds
+        mov ax,GFX_SCR_ADDR
+        mov ds,ax                       ; ds = screen
+
+        mov ah,01h                      ; bit plane mask
+        xor cx,cx                       ; table x
+PlasmaLpPlane:
+        ; set bit plane
+        mov al,02h
+        mov dx,VGA_SEQUENCER_ADDR
+        out dx,ax
+
+        mov si,(PLASMA_TOP * GFX_SCR_WIDTH + PLASMA_LEFT) / 4
+        add si,cs:[vx_scr_active]       ; si = screen offset
+
+PlasmaLpX:
+        xor dx,dx                       ; table y multiplied by PLASMA_WIDTH
+PlasmaLpY:
+        ; process one pixel
+        xor al,al                       ; color
+        mov bp,0                        ; i
+%rep 3
+        mov di,dx                       ; premultiplied y
+        sub di,cs:[plasma_y + bp]       ; y' = y - y[i]
+        jns short $+4;Plasma6           ; y' = abs(y - y[i])
+        neg di
+;Plasma6:
+        mov bx,cx                       ; x
+        sub bx,cs:[plasma_x + bp]       ; x' = x - x[i]
+        jns short $+4;Plasma7           ; x' = abs(x - x[i])
+        neg bx
+;Plasma7:
+        add al,es:[di+bx]               ; color += Table[y', x']
+        add bp,2                        ; i++
+%endrep
+        mov di,dx                       ; premultiplied y
+        sub di,cs:[plasma_y + bp]       ; y' = y - y[i]
+        jns short $+4;Plasma6           ; y' = abs(y - y[i])
+        neg di
+;Plasma6:
+        mov bx,cx                       ; x
+        sub bx,cs:[plasma_x + bp]       ; x' = x - x[i]
+        jns short $+4;Plasma7           ; x' = abs(x - x[i])
+        neg bx
+;Plasma7:
+        add al,es:[di+bx]               ; color += Table[y', x']
+
+        ; color = abs(color) + 1
+        jns short Plasma8
+        neg al
+Plasma8:
+        inc al
+
+        ; set pixel
+        mov ds:[si],al
+
+        add si,GFX_BYTES_PER_LINE       ; next pixel in column
+        add dx,1 * PLASMA_WIDTH         ; premultiplied y++
+        cmp dx,PLASMA_HEIGHT * PLASMA_WIDTH
+        jb  PlasmaLpY
+
+        sub si,GFX_BYTES_PER_LINE * PLASMA_HEIGHT - 1 ; first in next column
+        add cx,4                        ; x += 4
+        cmp cx,PLASMA_WIDTH
+        jb  PlasmaLpX
+
+        sub cx,PLASMA_WIDTH - 1         ; x = x - PLASMA_WIDTH + 1 = 0,1,2,3
+        shl ah,1                        ; next bit plane
+        test ah,00010000b
+        jz  PlasmaLpPlane
+
+        pop ds
+
+        pop bp
+        pop cx
+
+        lea bx,plasma_txt
+        mov ax,8001h
+        mov dx,bp
+        shr dx,1
+        jnc short Plasma9
+        sub word [vx_cursor_x],08h
+Plasma9:
+        call near VXPrintString
+
+        ; swap video pages
+        xor cl,00000101b
+
+        call near WasKeyPressed
+        jc short PlasmaBreak
+
+        inc bp
+        cmp bp,PLASMA_LOOP_COUNT
+        jae short PlasmaBreak
+        jmp near PlasmaMainLp
+
+PlasmaBreak:
+        ; free plasma table (addressed by ES register)
+        mov ah,49h
+        int 21h
+
+PlasmaR:pop es
+        pop bp
+        pop di
+        pop si
+        pop dx
+        pop cx
+        pop bx
+        pop ax
+        popf
+        ret
+
+;6. Горящее пламя, авторы, ссылки и завершение.
 
 
 FLAME_HEIGHT            EQU 050h        ;Flame max.
@@ -1314,6 +1690,10 @@ FlamesOutro:
         push di
         push bp
         push es
+
+        mov ax,0100h                    ; page 0
+        call near VXClearVRAM
+        call near VXSetActDispPage
 
 ;Print title on screen.
 
@@ -1664,6 +2044,13 @@ scr_y_cos_tab   resw DRAW_COS_WIDTH
 ;Rectangles left-top and right-bottom pixels and color.
 rects_data      resw RECTS_SCREEN * 4
 rects_color     resb RECTS_SCREEN
+
+; Plasma
+plasma_temp     resw 1
+plasma_x        resw 4
+plasma_y        resw 4
+plasma_h        resw 4
+plasma_v        resw 4
 
 ; Outro
 flame_data      resb FLAME_SIZE
