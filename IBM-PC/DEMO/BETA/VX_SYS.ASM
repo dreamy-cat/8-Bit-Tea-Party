@@ -64,7 +64,6 @@
 
 
 %include "VGA-X.ASM"    ;NASM, include header of library.
-%include "VX_DAC.ASM"   ;because of VXSetPalColor call in VXSetFullDAC
 
 
 ;Global data for all VGA-X procedures, using memory.
@@ -145,6 +144,7 @@ VXClearVRAM:
         mov ah,al
         mov al,00001111b
         call near VXSetPlanes
+        mov al,ah                       ;Исправление после вещания 20.
         xor di,di
         cld
 ClVRAM3:shr dl,1
@@ -303,6 +303,23 @@ VXSetPlanes:
         xchg ah,al
         and ah,00001111b                ;Mask for 4 planes.
         mov al,02h
+        out dx,ax                       ;16 bit out.
+        pop dx
+        pop ax
+        popf
+        ret
+
+;Get planes for read in VGA X-MODE.
+;al - plane index to read, only single mode.
+
+VXGetPlane:
+        pushf
+        push ax
+        push dx
+        mov dx,VGA_GRAPHICS_ADDR
+        and al,00000011b                ;Mask for 0..3 values.
+        xchg ah,al
+        mov al,04h
         out dx,ax                       ;16 bit out.
         pop dx
         pop ax
