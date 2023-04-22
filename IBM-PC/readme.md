@@ -31,3 +31,5 @@ https://assembler-code.com/ - блог на русском с полезными
 http://asmirvine.com/ - К. Ирвин, оф. сайт.
 http://bitsavers.trailing-edge.com/pdf/ibm/pc/cards/IBM_VGA_XGA_Technical_Reference_Manual_May92.pdf - черновик документации VGA, 1992.
 
+https://en.wikichip.org/wiki/intel/80486
+
