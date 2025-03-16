@@ -1,11 +1,12 @@
-;8-Bit Tea Party! 2021
-;License: Creative Commons.
-;Platform: CPU 8086\87, GPU VGA, REAL MODE, DOS.
+;8-Bit Tea Party! License: Creative Commons.
+;Platform: 8086, VGA, BIOS.
 ;Tools: NASM.
 ;Author: Daniil Potapov (alpha-tea).
 
+; Черновик, обновить в целом код и демонстрацию.
+
 ;TimerDelay - функция задержки по системному таймеру.
-;ах - задержка в тиках(18.2 в секунду).
+;ах - задержка в тиках(18.2 в секунду). 
 
 TimerDelay:
         pushf           ;Доп.оптимизация, если убрать.
