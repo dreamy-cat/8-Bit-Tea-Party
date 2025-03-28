@@ -1,0 +1,3 @@
+del random.com
+C:\DOSPRO\NASM\nasm.exe clear.asm -o clear.com -f bin -O0 -w+ptr -i..\
+rem -p..\clear.asm

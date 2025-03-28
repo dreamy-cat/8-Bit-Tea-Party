@@ -4,21 +4,24 @@
 ;Модули: system.asm, screen.asm, clear.asm.
 ;Авторы: Даниил Потапов (danilzatruda23@gmail.com) [1],
 ;        Александр Серов (funny.dreamy.cat@gmail.com) [2].
-;Быстродействие: примерно тактов, в/не зависимости от входных параметров.
-;Память: байт всего кода и сколько статичных/внешних прямых данных.
 
-;Демонстрация процедуры очистки экрана.
+; Демонстрация процедуры очистки экрана через циклы и в активном экране.
+
+; Задачи:
+; - обновить полностью с учетом модулей и пересмотреть включения и имена;
+; - подобрать кадры и вынести их в графический файл демонстрации.
 
 CPU 8086
-        org 100h
+        org 00100h
         pushf
+        jmp short Demo1
         push ax
         push cx
         push dx
-        mov cx,010h             ; 10h = 16 цветов.
-        mov al,'a'              ; Начальный символ.
-        mov ah,00001111b        ; Чёрный фон и яркокрасные буквы.
-        mov dl,00000011b        ; Фон и текст.
+        mov cx,010h                     ; 10h = 16 цветов.
+        mov al,'a'                      ; Начальный символ.
+        mov ah,00001111b                ; Чёрный фон и яркокрасные буквы.
+        mov dl,00000011b                ; Фон и текст.
 ClrPrt: call near ClearScreen
         push ax
         push cx
@@ -26,7 +29,7 @@ ClrPrt: call near ClearScreen
         mov cx,0Fh
         mov dx,0A120h
         mov ah,086h
-        int 15h                 ; Ожидание 7A120 (500.000) миллисекунд.
+        int 15h                         ; Ожидание 7A120 (500.000) миллисекунд.
         pop dx
         pop cx
         pop ax
@@ -47,7 +50,7 @@ ClrPrt: call near ClearScreen
         pop cx
         pop ax
         jmp Demo0
-        mov ah,00011111b
+Demo1:  mov ah,00011111b
         mov al,02Eh
         mov dl,00000010b
         call near ClearScreen
@@ -75,3 +78,4 @@ Demo0:  xor ah,ah
 
 %include "clear.asm"
 
+;22.03.25 [1,2]: Минимальный код для демонстрации и тестирования очистки экрана.
