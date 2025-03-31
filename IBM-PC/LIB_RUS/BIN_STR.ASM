@@ -1,83 +1,87 @@
 ;8-Бит Чаепитие! Лицензия: Creative Commons.
 ;Платформа: 8086, BIOS, CGA+.
 ;Инструменты: NASM(2.15).
-;Модули: system.asm, screen.asm.
+;Модули: system.asm, screen.asm, clear.asm, print.asm.
 ;Авторы: Даниил Потапов (danilzatruda23@gmail.com) [1],
 ;        Александр Серов (funny.dreamy.cat@gmail.com) [2].
-;Быстродействие: примерно тактов, в/не зависимости от входных параметров.
-;Память: байт всего кода и сколько статичных/внешних прямых данных.
+;Быстродействие: минимальное при 8-бит числе и прямом порядке - 750 тактов;
+;                максимальное при 32-бит числе и обратном порядке - 4060 тактов.
+;Память: 106 байт кода и без статичных данных.
+
+; Задачи:
+; - обновить при внедрении модульности, вынести демонстрацию, очистку и печать;
+; - подумать над оптимизацией через вывод или смещения бит, слишком много jmp;
+; - дополнить вывод с учетом флага только значимых бит числа;
+; - 64 бита под вопросом, не совсем понятна применимость.
 
 ; Демонстрация и тестирование преобразования данных в бинарное или двоичное
-;представление строкового формата.
+;представление строкового формата. Все 12 возможных комбинаций по флагам.
 
-; Процедура преобразования целочисленных данных в бинарное или двоичное
-;текстовое представ4ление в формате нашей строки с учетом флагов и размерностей.
-; Символы 0 и 1 сохраняются в память по всей длине, в первой версии без учета и
-;контроля допустимой длины строки, всё управление на стороне вызова. Проверяется
-;только актуальная длина и символы перезаписываются как есть.
-CPU 8086
-        org 100h
-        pushf
+        org 00100h
+Demo:   pushf
         mov ax,00F20h
         mov dl,00000011b
-        call near ClearScreen
-;Вывод всех 12 возможных комбинаций с преобразованием с учётом всех флагов.
-        mov ch,00000000b
+        call near ClearScreen           ;Полная очистка экрана.
+        mov si,0004h                    ;4 реализованых сценария по 3 типа
+        mov ch,00000000b                ;данных 8-16-32 бита в каждом.
         xor dx,dx
-        cld
-        mov si,00004h
-
-Demo6:  cmp si,00004h
+        cld                             ;Не забываем флаг направления.
+Demo4:  cmp si,00004h                   ;Всего 4 блока выводов бинарных чисел.
         jnz short Demo1
-        lea bx,str_debug
-        xor al,al
-        call near Print
+        lea bx,string_debug             ;Если первая строка, то выводим общую
+        xor al,al                       ;информацию об отладке и смещаемся
+        call near Print                 ;на пару позиций вниз.
         add dh,002h
-        lea bx,str_forward
-        call near Print
+        lea bx,string_forward           ;Также выводим на экран наш первый
+        call near Print                 ;блок с прямым выводом бит.
         inc dh
 Demo1:  cmp si,00002h
         jnz short Demo2
         inc dh
-        lea bx,str_backward
-        call near Print
-        or ch,00001000b
+        lea bx,string_backward          ;Если второй блок, то выводим на экран
+        call near Print                 ;сообщение, об обратном порядке бит и
+        or ch,00001000b                 ;включаем наш флаг.
         inc dh
-Demo2:  mov cl,003h
-        lea bx,bin_string
+Demo2:  mov cl,003h                     ;В цикле выводим 8-16-32 бита наших
+        lea bx,string_binary            ;заданных чисел, с преобразованием.
 Demo3:  mov di,dx
         mov ax,0FEDCh
         mov dx,00F0Ah
-        call near BinaryToString
+        call near BinaryToString        ;Вызов основной процедуры.
         mov dx,di
-        xor al,al
+        xor al,al                       ;Выводим бинарную строку как есть.
         call near Print
-        inc dh
-        inc ch
-        dec cl
+        inc dh                          ;Смещаем координату вывода вниз,
+        inc ch                          ;увеличиваем тип данных(биты) и
+        dec cl                          ;уменьшаем счетчик типов.
         jnz short Demo3
-        cmp si,00004h
-        jz short Demo4
-        cmp si,00003h
-        jz short Demo4
-        cmp si,00002h
+        cmp si,00004h                   ;Далее проверки промежуточного вывода и
+        jz short Demo6                  ;определяем, не нужно-ли заполнить
+Demo7:  cmp si,00003h                   ;или очистить бинарную строку точками.
+        jz short Demo6
+        cmp si,0002h
         jnz short Demo5
-Demo4:  mov di,bx
-        mov bx,cx
+Demo6:  mov di,bx                       ;Заполняем строку точками, для удобства
+        mov bx,cx                       ;восприятия бит при выводе на экран.
         mov al,'.'
         mov cx,[di + STR_LEN_OFFS]
         add di,[di + STR_TEXT_OFFS]
-        rep stosb
+        rep stosb                       ;По прямому флагу напрвления.
         mov cx,bx
         xor ch,00000111b
-Demo5:  dec si
-        jnz short Demo6
-Demo0:  xor ah,ah
+Demo5:  dec si                          ;Замыкаем цикл и кажется не вмещаемся в
+        jz short Demo0                  ;короткий условный переход.
+        jmp near Demo4
+Demo0:  xor ah,ah                       ;Ожидание нажатия клавиши и выходим.
         int 16h
         popf
         ret
 
-
+; Процедура преобразования целочисленных данных в бинарное или двоичное
+;текстовое представление в формате нашей строки с учетом флагов и размерностей.
+; Символы 0 и 1 сохраняются в память по всей длине, в первой версии без учета и
+;контроля допустимой длины строки, всё управление на стороне вызова. Проверяется
+;только актуальная длина и символы перезаписываются как есть.
 ; Вход:
 ;AL     8 бит, целое число без знака;
 ;AX     16 бит, целое число без знака;
@@ -88,85 +92,84 @@ Demo0:  xor ah,ah
 ;2      выравнивание в строке 0 - слева или 1 - справа;
 ;3      0 - вывод прямой слева старший к правому младшему разряду или обратный;
 ;4      1 - выводить только значимые разряды или 0 - все с учетом размерности;
-;5..7   резерв. 2,3,4 бит дополнительно, может прямо на вещании сделаем.
+;5..7   резерв. 3,4 бит дополнительно, может прямо на вещании сделаем.
+;Выход: экран видеобуфера(страницы), все регистры остаются как есть.
 
 BinaryToString:
-        pushf
-        push ax
-        push bx
+        pushf                           ;Сохраняем регистр флагов и остальные
+        push ax                         ;используемые регистры AX,CX,DX,SI,DI.
         push cx
         push dx
         push si
         push di
-        mov cl,ch
-        and cl,00000011b
+        mov cl,ch                       ;Проверяем на допустимость размерность
+        and cl,00000011b                ;входных данных, 64 бита не реализовано.
         cmp cl,00000011b
-        jz short BinStr0                ; 64 bits not work
-        mov di,ax
-        mov ax,00008h
-        shl ax,cl
-        mov cl,al                       ; cl bits
-        mov si,ax                       ; si - 16 bit size
-        mov ax,di
-        test ch,00000100b
-        jnz short BinStr4               ; to right
+        je short BinStr0
+        mov di,ax                       ;Копируем AX и вычисляем количство бит
+        mov ax,00008h                   ;для вывода, путем смещения числа 8
+        shl ax,cl                       ;влево на младшие 2 бита флагов в CH.
+        mov cl,al                       ;CL теперь 8-битный размер строки.
+        mov si,ax                       ;SI 16-битный размер для удобства.
+        mov ax,di                       ;Восстанавливаем число в AX.
+        test ch,00000100b               ;Выравнивание вывода слева или справа.
+        jnz short BinStr1
         mov di,[bx + STR_TEXT_OFFS]
-        add di,si                       ; if left
-        jmp short BinStr3
-BinStr4:mov di,[bx + STR_TEXT_OFFS]
-        add di,[bx + STR_LEN_OFFS]      ; if right
-BinStr3:dec di
-        clc
-        test ch,00001000b               ; or reverse bit  !optimize code
-        jnz short BinStr5
-        rcr dx,1
-        rcr ax,1
-        jmp short BinStrA
-BinStr5:mov si,cx
-        and ch,00000011b
-        jnz short BinStr6
-        rcl al,1
-        jmp short BinStrB
-BinStr6:cmp ch,00000001b
-        jnz short BinStr7
-        rcl ax,1
-        jmp short BinStrB
-BinStr7:rcl ax,1
-        rcl dx,1
-BinStrB:mov cx,si
-BinStrA:jc short BinStr1
-        mov [bx + di], byte '0'
+        add di,si                       ;Выравнивание смещения в строку слева.
         jmp short BinStr2
-BinStr1:mov [bx + di], byte '1'
-BinStr2:dec cl
-        jnz short BinStr3
+BinStr1:mov di,[bx + STR_TEXT_OFFS]
+        add di,[bx + STR_LEN_OFFS]      ;Выравнивание смещения в строку справа.
+BinStr2:dec di                          ;[DI-1] смещение на первую позицию.
+        clc                             ;Сбрасываем флаг переноса для сдвигов.
+        test ch,00001000b               ;Проверяем порядок извлечения бит:
+        jnz short BinStr4               ;от младших к старшим или наоборот.
+        rcr dx,1
+        rcr ax,1                        ;Возможно в следующей версии применить
+        jmp short BinStr9               ;отдельную процедуру реверса бит.
+BinStr4:mov si,cx                       ;Сохраняем флаги и анализируем данные.
+        and ch,00000011b                ;Возможна оптимизация через реверс.
+        jnz short BinStr5
+        rcl al,1                        ;8-ми битное число.
+        jmp short BinStrA
+BinStr5:cmp ch,00000001b
+        jnz short BinStr6
+        rcl ax,1                        ;16-ти битное число.
+        jmp short BinStrA
+BinStr6:rcl ax,1                        ;32-х битное число.
+        rcl dx,1
+BinStrA:mov cx,si                       ;Восстановим флаги и счетчик.
+BinStr9:jc short BinStr7                ;Анализируем флаг переноса и сохраняем
+        mov [bx + di],byte '0'          ;заданное значение.
+        jmp short BinStr8               ;Посчитать такты и оптимизировать
+BinStr7:mov [bx + di],byte '1'          ;без одного перехода.
+BinStr8:dec cl                          ;Уменьшаем основной битовый счетчик и
+        jnz short BinStr2               ;переходим к следующему символу.
 BinStr0:pop di
         pop si
         pop dx
         pop cx
-        pop bx
-        pop ax
-        popf
-        ret
+        pop ax                          ;Восстанавливаем все используемые
+        popf                            ;общие регистры, флаги и возвращаем
+        ret                             ;управление в код вызова.
 
-bin_string     dw 00020h
-               dw 00004h
-               db 00020h dup ('.')
+; Общая строка отладки для заголовка и заданные чисел для проверки результата.
+string_debug    dw 00038h
+                dw 00004h
+                db "Print binary integers 00F0A and 0FEDC in hex with flags."
+; Строка для блока вывода слева и справа, в прямом порядке бит.
+string_forward  dw 00035h
+                dw 00004h
+                db "Print binary left-right and right-left, bits forward."
+; Строка для блока вывода слева и справа, в обратном порядке бит.
+string_backward dw 00036h
+                dw 00004h
+                db "Print binary left-right and right-left, bits backward."
+; Строка назначения для процедуры бинарного преобразования, 32 точки.
+string_binary   dw 00020h
+                dw 00004h
+                db 020h dup ('.')
 
-str_debug      dw 00033h
-               dw 00004h
-               db "Print binary integers 00F0Ah and 0FEDCh with flags."
-
-str_forward    dw 00035h
-               dw 00004h
-               db "Print binary left-right and right-left, bits forward."
-
-str_backward   dw 00036h
-               dw 00004h
-               db "Print binary left-right and right-left, bits backward."
-
-;30.03.25, [1,2]: Первая версия преобразования числа в двоичную строку и демка.
-
+;30.03.25 [1,2]: Первая версия преобразования числа в двоичную строку и отладка.
 
 ; Процедура расширенной печати в стандартный текстовый экран, параметры режима
 ;располагаются в отдельном файле или в системном заголовке. Формат строки
