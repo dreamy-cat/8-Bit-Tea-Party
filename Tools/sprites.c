@@ -1,4 +1,10 @@
-﻿#include <iostream>
+﻿// 8-Бит Чаепитие! Лицензия: Creative Commons.
+// Поддерживаемые платформы: ZX Spectrum.
+// Инструменты: CMake 3.5, GCC 13.1 x64, С11.
+// Авторы: Александр Серов (alexander.serov@protonmail.com) [1].
+// Описание: инструменты для работы со спрайтами.
+/*
+#include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <string>
@@ -89,3 +95,4 @@ int main()
 	}
 	cout << "Files converted to sprites " << converted << ", return to TR-DOS..." << endl;
 }
+*/

@@ -2,4 +2,6 @@
 *.code-workspace
 *.com 
 *.bat
+.qtcreator/
+release/
 tdconfig.td
