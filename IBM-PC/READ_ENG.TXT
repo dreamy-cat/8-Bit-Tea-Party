@@ -1,0 +1,7 @@
+8-Bit Tea Party! License: Creative Commons (CC BY-NC-SA).
+Platform: 8086(87), CGA, VGA, BIOS, DOS 5.0+.
+Tools: DOSBox, NASM(2.15), ALink, Turbo Debugger.
+Авторы: Alexander Serov (alexander.serov@protonmail.com) [1].
+	Dmitry Galashin () [2],
+	Danila Perov (peroff@protonmail.com) [3],
+	Daniil Potapov (alphatea48@proton.me) [4].
