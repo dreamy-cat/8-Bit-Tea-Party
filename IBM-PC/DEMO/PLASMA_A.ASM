@@ -1,43 +1,35 @@
-;Release version of demo with all effects and libraries.
-
 ;Small Demo by 8-Bit Tea Party, 2021.
 
-;Общее описание и платформа(подробнее в файле 'readme.dos').
-
-;Платформа: ДОС-совместимая от условной версии 5.0, реальный режим адресации.
-;Процессор: только 8086(88) и математический сопроцессор 8087.
-;Основная память: 64Кб для кода и стека(модель минимальная). Остальные данные
+; Платформа: ДОС-совместимая от условной версии 5.0, реальный режим адресации.
+; Процессор: только 8086(88) и математический сопроцессор 8087.
+; Основная память: 64Кб для кода и стека(модель минимальная). Остальные данные
 ;желательно уложить в 512Кб. Для запуска на "тяжелых" ДОС конфигурациях.
-;Расширенная память: через драйвер XMS, не более 16Мб(не защищенный режим).
-;Графический адаптер: IBM VGA, 256Кб, 6 бит на цвет, палитра 2^18 цветов,
+; Расширенная память: через драйвер XMS, не более 16Мб(не защищенный режим).
+; Графический адаптер: IBM VGA, 256Кб, 6 бит на цвет, палитра 2^18 цветов,
 ;графический Х-режим, 320x240x8бит на цвет по таблице.
-;Звуковая плата: Adlib/SBPro(OPL2/OPL3), FM - частотная модуляция.
-;Формат файла: .COM, 64Kb, использовать функции ДОС-а для запроса памяти.
+; Звуковая плата: Adlib/SBPro(OPL2/OPL3), FM - частотная модуляция.
+; Формат файла: .COM, 64Kb, использовать функции ДОС-а для запроса памяти.
 
 CPU 8086                                ;8087 as math. coprocessor.
 
 ;Глобальные константы для демонстрации и их настройки.
-
 
 DEMO_RAND_INIT  EQU 0FA0Fh              ;Инициализация генератора на старте.
 DEMO_FADE_SPEED EQU 001h                ;Скорость работы эффекта появления и
                                         ;ухода экрана. Вычитание из 64
                                         ;интенсивности всех цветов.
 
-        org 100h                        ;PSP.
+        org 00100h
         pushf
-        mov ah,0Fh                      ; get current mode
+        mov ah,0Fh                      ; Сохраняем оригинальный видеорежим.
         int 10h
         mov [prev_video_mode],al
-
-        ; resize program segment
-        mov ah,4Ah                      ;Resize memory segment.
-        mov bx,1000h                    ;16 bytes multiply 4k = 64kb.
-        int 21h
+        mov ah,4Ah                      ; Изменение размера сегмента, и
+        mov bx,1000h                    ;освободжение памяти за 64Кб кода,
+        int 21h                         ;размерности в параграфах, 16 байт.
         jnc short Demo0
         jmp near DemoR
-Demo0:
-        call near VXSetModeX            ;Init gfx, set pages and clear VRAM.
+Demo0:  call near VXSetModeX            ; Инициализация графики и страниц.
         xor al,al
         call near VXSetActDispPage
         mov al,00001111b
@@ -46,31 +38,24 @@ Demo0:
         ;mov al,90h
         mov ah,00001111b
         call near VXClearVRAM
-
-        call near VXLoadFontBIOS        ;Init default font.
+        call near VXLoadFontBIOS        ; Инициализация шрифта из ПЗУ.
         mov ax,DEMO_RAND_INIT
-        call near RandomSimple          ;Random init.
-
+        call near RandomSimple          ; Инициализация генератора.
         ;call near VXSetFullDAC
 
-;Testing Intro.
-
+; Тестирование только эффекта плазмы, остальные эффекты отдельно.
         call near Plasma
         ;call near ScreenFadeOut
-        ;call near MoveRectangles
         jmp short DemoR
-
-DemoWait:
-        mov ah,00h                      ;Press any key.
-        int 16h
-DemoR:  ; restore video mode
-        mov ah,0
+DemoR:  xor ah,ah                       ; Ожидание клавиши и восстанавливаем
+        int 16h                         ;оригинальный видеорежим.
+        xor ah,ah
         mov al,[prev_video_mode]
         int 10h
         popf
         ret
 
-;Процедура для демки. Гашением экрана через палитру и синхронизацией по лучу.
+; Процедура для демки. Гашением экрана через палитру и синхронизацией по лучу.
 
 ScreenFadeOut:
         pushf
@@ -110,7 +95,6 @@ SFadeO8:call near VXSetPalColor
         popf
         ret
 
-
 ;5. Плазма или четвёртое агрегатное состояние вещества. :)
 ; ! После выделения памяти, уточнить размеры выделяемого блока.
 ; Т.е. ограничения, только если в экран не влезли в 64Кб, но не обязательно.
@@ -127,31 +111,22 @@ SFadeO8:call near VXSetPalColor
 ; 3. sqrt(x*x + y*y) - смещение относительно центра;
 ;    color = sin(sqrt(x - width/f)^2 + (y - height/f)^2)
 
-PLASMA_LEFT             EQU 000h         ; Отлично, есть окно отображения.
+; По кругам 6-6.5.
+
 PLASMA_WIDTH            EQU GFX_SCR_WIDTH
-PLASMA_HEIGHT           EQU 040h ;
+PLASMA_HEIGHT           EQU 050h ;
+PLASMA_LEFT             EQU 000h         ; Отлично, есть окно отображения.
 PLASMA_TOP              EQU (GFX_SCR_HEIGHT - PLASMA_HEIGHT) / 2
 ; "Уплотнение" потока по маске, регулировка в основном по вертикали.
 PLASMA_WIDTH_MASK       EQU 01FFh       ; 2^roundup(log2(PLASMA_WIDTH)) - 1
 PLASMA_HEIGHT_MASK      EQU 003Fh       ; 2^roundup(log2(PLASMA_HEIGHT)) - 1
-PLASMA_LOOP_COUNT       EQU 1A0h        ;Общий цикл для всего эффекта.
+PLASMA_OFFS_SIZE        EQU 008h        ; Размеры таблиц смещения 4 слова.
+PLASMA_LOOP_COUNT       EQU 2F0h        ; Общий цикл для всего эффекта.
 PLASMA_TEXT_X           EQU PLASMA_LEFT ; Вывод текста.
-PLASMA_TEXT_Y           EQU 0B0h ;PLASMA_TOP + PLASMA_HEIGHT + 5
-PLASMA_TEXT_COLOR       EQU 03Fh
-
-plasma_txt      dw plasma_txt_e - plasma_txt_b
-                dw 0004h
-; ! Добавить заголовок эффекта крупно вверху с градиентом.
-plasma_txt_b    db 'This effect using the coprocessor for   '
-                db 'table initialization. Heavily optimized '
-                db 'but still resource intensive.           '
-                db 'Feel the warmth of our plasma, born in  '
-                db 'the snowy winter 2021-2022! :)'
-plasma_txt_e:
-
-plasma_A        dd 5.0
-plasma_B        dd 15.0
-control_reg     dw 0000h
+PLASMA_TEXT_Y1          EQU 00018h      ; Без формул подгоняем координаты сами.
+PLASMA_TEXT_Y2          EQU 000A8h
+PLASMA_TEXT_COLOR1      EQU 07Fh        ; Вывод технического описания возможен
+PLASMA_TEXT_COLOR2      EQU 020h        ;другим цветом.
 
 Plasma:
         pushf                           ; Сохраняем все регистры на стек.
@@ -164,7 +139,7 @@ Plasma:
         push bp
         push es
         cld                             ; Флаг направления, для заполнения.
-        mov ax,0300h                    ; Очистка видео-страниц 0 и 1.
+        mov ax,00300h                   ; Очистка видео-страниц 0 и 1.
         call near VXClearVRAM
 ; Инициализация палитры цветов, возможно немного оптизировтаь цикл.
         xor ax,ax                       ; Иницициализация 0 цвета, индекс 0 и
@@ -172,7 +147,7 @@ Plasma:
         call near VXSetPalColor
         inc al
 PlasmaPalLp1:
-        mov ah,63                       ; Red = 63.
+        mov ah,03Fh                     ; Red = 63.
         mov dl,al
         shl dl,1                        ; Green = index * 2.
         xor dh,dh                       ; Blue = 0.
@@ -184,12 +159,27 @@ PlasmaPalLp2:
         mov ah,03Fh                     ; Заполняем вторую часть из 64 цветов.
         sub ah,al
         shl ah,1                        ; Red = (63-index) * 2.
-        mov dl,63                       ; Green = 63.
+        mov dl,03Fh                     ; Green = 63.
         xor dh,dh                       ; Blue = 0.
         call near VXSetPalColor
         inc al
         cmp al,040h                     ; До 64-го.
         jb short PlasmaPalLp2
+; Дополнительная палитра, если что прямо здесь.
+        mov ax,03F40h                   ; Индекс цвета 64 стартовый и красный,
+        mov dx,00000h                   ;зеленый и синие компоненты.
+PlsPal3:call near VXSetPalColor         ; RY:03F40:0000; add dl,4.
+        inc al                          ; YG:03F40:0000; dec ah, inc dl.
+        test al,00000001b               ; RW:03F40:0000: add dl,4; add dh,4
+        jnz short PlsPal4               ; Каждый второй цвет смещаем.
+        ;dec ah
+        ;inc dl
+        test al,00000011b               ; Каждый 4-й цвет смещаем.
+        jnz short PlsPal4
+        ;add dh,004h
+        add dl,004h
+PlsPal4:cmp al,080h                     ; Максимум 32-16 градиентов.
+        jne short PlsPal3
 
 ; Выделение памяти для таблицы, размер / 16 + 1 для гарантии.
         mov ah,48h
@@ -205,9 +195,8 @@ Plasma0:
         mov ax,[control_reg]            ; В аккумулятор напрямую нельзя.
 ; Рrecision Соntrol = 00b - single precision(точность чуть быстрее).
 ; Rounding Control = 00b - round to nearest value(округление к ближайший).
-        and ah,11110000b
-        ;and [control_reg], byte 11110000b
-        mov [control_reg],ax            ; И снова через память, ок 8087.
+        and ah,11110000b                ; Или напрямую в память.
+        mov [control_reg],ax            ; И снова через память, т.к. 8087.
         fldcw [control_reg]             ; Округление 32 бита.
 
 ; Инициализация таблицы плазмы.
@@ -242,7 +231,7 @@ PlasmaLp2:
         fldpi                           ; pi | arg | sin
         fxch                            ; arg | pi | sin
         fprem                           ; mod(arg / pi) | pi | sin
-; can't use fstsw ax on 8087 :(
+; Can't use fstsw AX on 8087 :(
 ; But if we have 80287 - yes we can! :)
         fstsw word [plasma_temp]
         fincstp                         ; pi | sin
@@ -252,8 +241,7 @@ PlasmaLp2:
         jz short Plasma1
         fchs                            ; -sin
         ; ! Взять на заметку, знак числа можно менять командой.
-Plasma1:
-        fld dword [plasma_B]
+Plasma1:fld dword [plasma_B]
         fmulp ST1,ST0                   ; sin * B
         frndint                         ; Округляем итоговый результат и
         fistp word [plasma_temp]        ;выталкиваем его в память.
@@ -270,7 +258,7 @@ Plasma1:
 ; Заполнение первыми случайными значениями массивов X[] и Y[].
         xor si,si
 PlasmaLp3:
-PlasmaNextX:                    ; x[i] = Random(PLASMA_WIDTH)
+PlasmaNextX:                            ; x[i] = Random(PLASMA_WIDTH)
         xor ax,ax
         call near RandomSimple
         and ax,PLASMA_WIDTH_MASK        ; Общая маска по ширине, не совсем ясно.
@@ -278,7 +266,7 @@ PlasmaNextX:                    ; x[i] = Random(PLASMA_WIDTH)
         jae short PlasmaNextX           ; Перебор далее по координате Х.
         mov [plasma_x + si],ax
 
-PlasmaNextY:    ; y[i] = Random(PLASMA_HEIGHT) * PLASMA_WIDTH
+PlasmaNextY:            ; y[i] = Random(PLASMA_HEIGHT) * PLASMA_WIDTH
         xor ax,ax
         call near RandomSimple
         and ax,PLASMA_HEIGHT_MASK       ; Аналогично по высоте и координате Y.
@@ -289,7 +277,7 @@ PlasmaNextY:    ; y[i] = Random(PLASMA_HEIGHT) * PLASMA_WIDTH
         mov [plasma_y + si],ax
         inc si                          ; Следующие значения в памяти.
         inc si
-        cmp si,4*2
+        cmp si,PLASMA_OFFS_SIZE
         jb short PlasmaLp3
 
 ; Заполянем массивы H и V по горизонтали и вертикали случайными параметрами.
@@ -313,14 +301,13 @@ PlasmaStoreV:
         mov [plasma_v + si],ax
         inc si
         inc si
-        cmp si,4*2                      ; Размер таблицы 8 слов или 16 байт.
+        cmp si,PLASMA_OFFS_SIZE         ; Размер таблицы 4 слова или 8 байт.
         jb short PlasmaLp4
 
 ; Установка текстового курсора и цвета вывода, добавить сверху!
         mov word [vx_cursor_x],PLASMA_TEXT_X
-        mov word [vx_cursor_y],PLASMA_TEXT_Y
-        mov byte [vx_font_color],PLASMA_TEXT_COLOR
-
+        mov word [vx_cursor_y],PLASMA_TEXT_Y1
+        mov byte [vx_font_color],PLASMA_TEXT_COLOR1
         mov cl,00000001b                ; video pages: 0 - visible, 1 - active
         xor bp,bp                       ; main loop counter
 ; Основной цикл эффекта плазмы, счетчик цикла в BP, 2 странцы с синхронизацией.
@@ -330,7 +317,6 @@ PlasmaMainLp:
         mov al,cl                       ; Установка активной страницы и видимой.
         call near VXSetActDispPage
         call near VXWaitVSync
-
         xor si,si                       ; Смещение в массивах параметров.
 PlasmaLp6:
         mov ax,[plasma_x + si]          ; Проверяем координату Х на 1 и если
@@ -359,7 +345,7 @@ Plasma5:
         mov [plasma_y + si],ax          ; y[i] += v[i]
         inc si                          ; Обрабатываем следующие смещения в
         inc si                          ;таблице, размер возможно стоило в
-        cmp si,4*2                      ;в отдельный параметр.
+        cmp si,PLASMA_OFFS_SIZE         ;в отдельный параметр.
         jb short PlasmaLp6
 
 ; Отличная подсказка, что именно происходит, но можно просто общую формулу
@@ -389,13 +375,12 @@ PlasmaLpPlane:
         mov dx,VGA_SEQUENCER_ADDR
         out dx,ax                       ; CS - данные остались в сегменте кода.
         mov si,(PLASMA_TOP * GFX_SCR_WIDTH + PLASMA_LEFT) / 4
-        add si,cs:[vx_scr_active]       ; si = screen offset
+        add si,cs:[vx_scr_active]       ; SI смещение в видеопамяти.
 PlasmaLpX:
         xor dx,dx                       ; table y multiplied by PLASMA_WIDTH
 PlasmaLpY:
-        ; process one pixel
-        xor al,al                       ; color
-        mov bp,0                        ; i
+        xor al,al                       ; Отрисовка одного пикселя.
+        xor bp,bp                       ; Стартовый индекс i = 0.
 ; Директива цикла NASM, число повторений 3, текущий адрес "$" для смещения в
 ;сгенерированном коде, требуется, т.к. будет скомпилирован участок полностью.
 %rep 3
@@ -408,9 +393,9 @@ PlasmaLpY:
         sub bx,cs:[plasma_x + bp]       ; x' = x - x[i]
         jns short $+4;Plasma7           ; x' = abs(x - x[i])
         neg bx
-;Plasma7:                               ; Ключевпая формула следующего цвета.
+;Plasma7:                               ; Ключевая формула следующего цвета.
         add al,es:[di+bx]               ; color += Table[y', x']
-        add bp,2                        ; i++, BP + 2 - смещение сразу.
+        add bp,00002h                   ; i++, BP + 2 - смещение сразу.
 %endrep
 ; Окончание цикла NASM и директивы REP, все смещения по цветам прибавлены.
 ; Вот тут не совсем понятно, почти код аналогичен, но не попал в REP.
@@ -433,11 +418,10 @@ Plasma8:inc al                          ;меняем знак на противоположный.
 ; Установка пикселя с оптимизацией по планам в режиме VGA-X.
 
         mov ds:[si],al
-        add si,GFX_BYTES_PER_LINE       ; next pixel in column
+        add si,GFX_BYTES_PER_LINE       ; Следующий пиксель в колонке(столбце).
         add dx,1 * PLASMA_WIDTH         ; premultiplied y++
         cmp dx,PLASMA_HEIGHT * PLASMA_WIDTH
-        jb  PlasmaLpY
-
+        jb PlasmaLpY
         sub si,GFX_BYTES_PER_LINE * PLASMA_HEIGHT - 1 ; first in next column
         add cx,4                        ; Координата Х += 4, план сохранен.
         cmp cx,PLASMA_WIDTH
@@ -452,25 +436,41 @@ Plasma8:inc al                          ;меняем знак на противоположный.
         pop bp
         pop cx
 
-        lea bx,plasma_txt               ; Вывод текста снизу.
-        mov ax,8001h
-        mov dx,bp
-        shr dx,1
-        jnc short Plasma9
-        sub word [vx_cursor_x],08h
-Plasma9:call near VXPrintString        ;Печатаем следующий символ.
-
-        xor cl,00000101b                ; Смена видео странцы активно и
+; Вывод текста в обе страницы, и с учетом такта анимации.
+        push cx
+        lea bx,plasma_txt               ; Вывод текста сверху и снизу.
+        mov cx,00008h                   ; 8 или 16 точек смещения.
+        mov ax,00001h                   ; Флаги нашей печати, по одному.
+        cmp bp,00050h
+        jnc short PlasmaA
+        or ah,001h                      ; Изменяем масштаб вывода.
+        shl cx,1
+PlasmaA:mov dx,bp                       ; Смещение в тексте.
+        shr dx,1                        ; Т.к. страницы две и текст должен быть
+        call near VXPrintString        ;Печатаем следующий символ.
+        test bp,00001h                 ; Т.к. странцы 2.
+        jz short PlasmaB                ; Переход в случае четного.
+        add word [vx_cursor_x],cx
+        cmp word [vx_cursor_x],GFX_SCR_WIDTH               ; Конец экрана.
+        jc short PlasmaB
+        mov word [vx_cursor_x],00000h
+        add word [vx_cursor_y],cx       ; 8 или 16 смещените по вертикали.
+PlasmaB:pop cx
+        xor cl,00000101b                ; Смена видео странцы активной и
         ;call near WasKeyPressed        ;отображаемой.
-        jc short PlasmaBreak
-        inc bp                          ; Замыкание главного цикла.
-        cmp bp,PLASMA_LOOP_COUNT
-        jae short PlasmaBreak
-        jmp near PlasmaMainLp           ; Переход.
+        ;jc short PlasmaB
+        inc bp                          ; Замыкание главного цикла + 1.
+        cmp bp,00050h                   ; Смещаем курсор в описание ниже.
+        jne short Plasma9
+        mov word [vx_cursor_x],00000h
+        mov word [vx_cursor_y],PLASMA_TEXT_Y2
+        mov word [vx_font_color],PLASMA_TEXT_COLOR2
+Plasma9:cmp bp,PLASMA_LOOP_COUNT
+        jae short PlasmaC               ; Выход по окончанию счетчика.
+        jmp near PlasmaMainLp           ; Замыкание цикла анимации.
 
-PlasmaBreak:
 ; Освобождаем таблицу плазмы как динамической памяти, регистр ES корректен.
-        mov ah,49h
+PlasmaC:mov ah,49h
         int 21h
 
 PlasmaR:pop es
@@ -484,21 +484,33 @@ PlasmaR:pop es
         popf
         ret
 
+; Данные для эффекта плазмы, основная таблица в динамической памяти.
+plasma_txt      dw 00028h + 00140h
+                dw 00004h
+                db '  90S SCENE', 0B1h, 'PLASMA |'
+                db ' SINUS DATA ON 8087 '
+                db '1This effect using the coprocessor for |'
+                db '2table initialization.Heavily optimized|'
+                db '3but still resource intensive.         |'
+                db '4Feel the warmth of our plasma, born in|'
+                db '5the snowy winter 2021-2022! :)        |'
+                db '6 some text, of... effect.             |'
+                db '7 debug data text ____                 |'
+                db '8 8th string                           |'
+plasma_A        dd 6.5                  ; Коэфиценты для основной формулы.
+plasma_B        dd 15.0
+control_reg     dw 00000h               ; Регистр 8087, вынести в общий.
+plasma_temp     dw 1 dup (0)            ; Временная переменная и таблицы
+plasma_x        dw 4 dup (0)            ;смещений по 8 байт для плазмы.
+plasma_y        dw 4 dup (0)
+plasma_h        dw 4 dup (0)
+plasma_v        dw 4 dup (0)
+
+prev_video_mode db 0
+
 %include "vga_sys.asm"
 %include "dac.asm"
 %include "pixel.asm"
 %include "random.asm"
-%include "print.asm"
+%include "print_g.asm"
 %include "lines.asm"
-
-; === Uninitialized data ===
-section .bss                            ; NASM is strange
-
-prev_video_mode resb 1
-
-; Plasma
-plasma_temp     resw 1
-plasma_x        resw 4
-plasma_y        resw 4
-plasma_h        resw 4
-plasma_v        resw 4
