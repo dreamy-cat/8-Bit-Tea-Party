@@ -105,7 +105,8 @@ SAcDiP0:pop dx
         pop ax
         popf
         ret
-
+        
+; ! Доработать со смещениями.
 ; Процедура очистки всей страницы экрана в режиме Х. Простая проверка на ноль.
 ;Желательно не использовать вызовы дополнительных процедур.
 ;Вход:
@@ -152,60 +153,6 @@ ClVRAM4:pop es
         pop ax
         popf
         ret
-
-; Процедура очистки всей страницы экрана в режиме Х. Простая проверка на ноль.
-;Желательно не использовать вызовы дополнительных процедур.
-;Вход:
-;AL     индекс цвета для очистки всего экрана, 0..255;
-;AH     биты:
-;0..2   каждый бит если установлен, то очистить соответствующую страницу;
-;3      заполнить-ли оставшийся хвост от 256Кб, 31744 байта;
-;4..7   резерв.
-;SI     стартовое смещение в странице, включительно;
-;DI     последнее смещение в странице, включительно;
-;Выход: заполненная видеопамять VGA.
-
-VXClearVRAM2:
-        pushf
-        push ax
-        push cx
-        push dx
-        push es
-        mov dx,GFX_SCR_ADDR
-        mov es,dx
-        mov dh,ah
-        mov dl,dh
-        and dx,0000100000000111b
-        mov ah,al
-        mov al,00001111b
-        call near VXSetPlanes
-        mov al,ah                       ;Исправление после вещания 20.
-        ;xor di,di                      ; Не с начала.
-        cld
-ClrVRM3:shr dl,1
-        jnc short ClrVRM1
-        ;mov cx,GFX_PLANE_SIZE_W
-        mov cx,di
-        sub cx,si
-        shr cx,1
-        mov di,si                       ; Стартовое смещение.
-        rep stosw                       ; Заполняет ES:[DI].
-        jmp short ClrVRM2
-ClrVRM1:add di,GFX_PLANE_SIZE_B
-ClrVRM2:test dl,dl
-        jnz short ClrVRM3
-        test dh,dh
-        jz short ClrVRM4
-        mov cx,di                       ; Хвостик в памяти.
-        neg cx
-        rep stosw
-ClrVRM4:pop es
-        pop dx
-        pop cx
-        pop ax
-        popf
-        ret
-
 
 ; Установка видео-режима 'Mode-Х', разрешением 320 240 точек и 256 цветов по таблице.
 ;Краткая версия процедуры, в основе вещания и книги М.Абраша.
