@@ -53,9 +53,9 @@ DOS_FREE_MEM    EQU 049h
 
         ;call near IntroVGAX
         ;call near VXFadeOut
-        call near Plasma
+        ;call near Plasma
         ;call near VXFadeOut
-        ;call near Space3D              ; Вызов всех эффектов с переходом.
+        call near Space3D              ; Вызов всех эффектов с переходом.
         ;call near VXFadeOut
         ;call near CosineAnimation
         ;call near VXFadeOut
@@ -607,59 +607,33 @@ plasma_v        dw 4 dup (0)
 
 
 ;Минимальный 3Д космос по направлениям движения и вперед.
-
-
-CENTER_3D_X     EQU 1000h               ;Center of projection coordinates.
-CENTER_3D_Y     EQU 1000h
-
-SPACE_3D_TIMER  EQU 0310h
-SPACE_STARS     EQU 0FFh                ;Stars in space, max 255.
-SPACE_TXT_OFFS  EQU 00780h              ;1920 words minus bottom vpage.
-SPACE_TXT_SX    EQU 00000h              ;Start text.
-SPACE_TXT_SY    EQU 000C0h
-SPACE_TXT_COLOR EQU 07Fh                ;Blue or bright blue.
-SPACE_COLORS    EQU 0FFh                ;All blue/white colors.
-SPACE_STAR_SIZE EQU 08h                 ;Mask for stars depth/delay.
-SPACE_VMASK     EQU 00C0h               ;Mask for text on screen.
-SPACE_MASK_X    EQU 1FFFh               ;Mask for horizontal star position.
-SPACE_MASK_Y    EQU 1FFFh               ;Mask for vertical star position.
-SPACE_MASK_Z    EQU 00FFh               ;Mask for star depth.
-SPACE_MULT      EQU 0080h               ;Factor for XY.
-
-
-;3 words with parameters X,Y,Z and reserved word.
-
-stars_xyz:      dw 4 * SPACE_STARS dup (0000h)   ;In every direction.
-
-stars_move:     dw 0h, 0h, -03h
-                dw 0h, SPACE_MULT, 0h
-                dw -SPACE_MULT, SPACE_MULT, 0h
-                dw -SPACE_MULT, 0h, 0h
-                dw -SPACE_MULT, -SPACE_MULT, 0h
-                dw 0h, -SPACE_MULT, 0h
-                dw SPACE_MULT, -SPACE_MULT, 0h
-                dw SPACE_MULT, 0h, 0h
-                dw SPACE_MULT, SPACE_MULT, 0h
-
 ; Элементарное трехмерное пространство наполненное звездами с применением
 ;двух видео страниц и вертикальной синхронизацией.
 ; Кто "Опасный" в Элите?! :)
 ;Видеобуффер в 256 килобайт содержит четыре битовых плана с
 ;простыми трюками аппаратного ускорения.
 ; Структура режима Х: Три видеостраницы по 75 и 31 свободных килобайта.
-;
 
-space_3D_txt    dw 00F0h
-                dw 0004h
-                db ' Elementary 3D Space, filled with stars '
-                db 'and using both video pages with V-Sync. '
-                db ' Who is the Dangerous in Elite?! :)     '
-                db ' VRAM is 256Kb contains four bit-planes '
-                db 'with some hardware acceleration tricks. '
-                db ' Mode-X: 3 pages of 75Kb and 31Kb free. '
-
+CENTER_3D_X     EQU 1000h               ; Центр проекции координат в виртуальном
+CENTER_3D_Y     EQU 1000h               ;пространстве.
+SPACE_DIRS      EQU 008h                ; Количество направлений движений и
+SPACE_MAIN      EQU 0050h               ;длина общего цикла, текст отдельно.
+SPACE_STARS     EQU 0FFh                ; Звёзд в пространстве до 255.
+SPACE_TEXT_OFFS EQU 00780h              ; Смещение в странице снизу текста.
+SPACE_TEXT_X    EQU 00000h              ; Координаты начала вывода текста.
+SPACE_TEXT_Y    EQU 000C0h
+SPACE_COLOR     EQU 07Fh                ; Синий или голубой цвет текста.
+SPACE_COLORS    EQU 0FFh                ; Маска для цветов звезд.
+SPACE_STAR_SIZE EQU 08h                 ; Размер структуры данных для звёзд.
+SPACE_VMASK     EQU 00C0h               ; Маска для фона и текста на экране.
+SPACE_MASK_X    EQU 1FFFh               ; Маски для горизонтальной и
+SPACE_MASK_Y    EQU 1FFFh               ;вертикальной позиции звезды.
+SPACE_MASK_Z    EQU 00FFh               ; Маска для глубины звезды по оси Z.
+SPACE_OFFS      EQU 0080h               ; Смещение по координатам XY.
+SPACE_SPEED     EQU -003h               ; Скорость полёта или смещения по оси Z.
+; Вариации скорости, маски глуины и направлений.
 Space3D:
-        pushf
+        pushf                           ; Сохраняем регистры и флаги на стек.
         push ax
         push bx
         push cx
@@ -667,109 +641,112 @@ Space3D:
         push si
         push di
         push bp
-
-        xor ax,ax
-        xor dx,dx
+        push es
+        mov ax,GFX_SCR_ADDR
+        mov es,ax
+        cld
+        mov ax,00300h                   ; Очищаем 2 видео страницы.
+        call near VXClearVRAM
+        xor ax,ax                       ; Формируем полную палитру для звёзд,
+        xor dx,dx                       ;начиная с нулевого, полностью черного.
 SpPal1: call near VXSetPalColor
         inc al
-        inc ah
-        inc dl
-        inc dh
+        inc ah                          ; Первые 64 цвета, обычный набот из
+        inc dl                          ;градаций белого. Все компоненты растут
+        inc dh                          ;равномерно.
         cmp al,040h
         jnz short SpPal1
-        xor ah,ah
+        xor ah,ah                       ; Снова очищаем все компоненты.
         xor dx,dx
 SpPal2: call near VXSetPalColor
-        inc dh
-        inc dl
-        inc al
+        inc dh                          ; Вторые 64 цвета, смешиваем только
+        inc dl                          ;зеленый и синий компоненты, получаем
+        inc al                          ;ярко голубой или циан.
         cmp al,080h
         jnz short SpPal2
-        xor ah,ah
+        xor ah,ah                       ; Очищаем компоненты цветов.
         xor dx,dx
 SpPal3: call near VXSetPalColor
-        inc ah
-        inc dl
-        inc al
+        inc ah                          ; Следующие 64 цвета, смешиваем только
+        inc dl                          ;красный и зеленый цвета, получаем ярко
+        inc al                          ;желтый цвет.
         cmp al,0C0h
         jnz short SpPal3
-        xor ah,ah
+        xor ah,ah                       ; Последняя очистка компонетов цветов.
         xor dx,dx
 SpPal4: call near VXSetPalColor
-        inc ah
-        inc dl
-        inc dh
-        inc al
-        jnz short SpPal4
+        inc ah                          ; Опять смешиваем все компоненты цветов,
+        inc dl                          ;хм, не совсем понятно, возможно для
+        inc dh                          ;удобства вывода или более красивой и
+        inc al                          ;удобной генерации звёзд.
+        jnz short SpPal4                ; Устанавливаем параметры вывода текста.
+        mov word [vx_cursor_x],SPACE_TEXT_X
+        mov word [vx_cursor_y],SPACE_TEXT_Y
+        mov byte [vx_font_color],SPACE_COLOR
+        xor al,al                       ; Для удобства оформляем создание звезд
+        mov ah,SPACE_STARS              ;в отдельную процедуру и первый вызов
+        call near CreateStars3D         ;генерирует полный набор данных.
 
-        mov word [vx_cursor_x],SPACE_TXT_SX
-        mov word [vx_cursor_y],SPACE_TXT_SY
-        mov byte [vx_font_color],SPACE_TXT_COLOR
-
-        xor al,al
-        mov ah,SPACE_STARS
-        call near CreateStars3D
-
-        lea di,stars_move
-        mov bh,01h
-        mov bl,00000001b                        ;Active screen.
-        xor bp,bp                               ;String offset.
-Space2: mov cx,SPACE_3D_TIMER                   ; main cycle
+        mov di,stars_move
+        mov bh,SPACE_DIRS
+        mov bl,00000001b                ; Выбор активной страницы.
+        xor bp,bp                       ; Смещение текста.
+Space2: mov cx,SPACE_MAIN               ; Начало основного цикла.
 Space1: push cx
-        mov ah,00h
-        ;int 16h
-        call near VXWaitVSync
-        mov al,bl
+        call near VXWaitVSync           ; Начало переключения отображения
+        mov al,bl                       ;активного кадра.
         call near VXSetActDispPage
-        push cx
-        push di
-        push es
-        mov cx,GFX_SCR_ADDR
-        mov es,cx
+        push cx                         ; Очистка видеобуфера активной страницы
+        push di                         ;со смещением и вычетом для текста.
         xor ah,ah
         and al,00000011b
-        mov dx,GFX_PAGE_SIZE_B
-        mov cx,GFX_PAGE_SIZE_W - SPACE_TXT_OFFS
+        mov dx,GFX_PAGE_SIZE_B          ; Вычисление смещения по странице.
+        mov cx,GFX_PAGE_SIZE_W - SPACE_TEXT_OFFS
         mul dx
-        mov di,ax
-        mov al,00001111b
+        mov di,ax                       ; DI - адрес назначения или можно
+        mov al,00001111b                ;применить вызов процедуры (не выйдет).
         call near VXSetPlanes
         xor ax,ax
-        cld
-        rep stosw
-        pop es
+        rep stosw                       ; Очистка всех планов сразу.
         pop di
         pop cx
-        call near MoveSpace3D
-        call near DrawSpace3D
-        xor bl,00000101b                        ;Change pages.
+        call near MoveSpace3D           ; Смещение звёзд в таблице и отрисовка
+        ;call near DrawSpace3D          ;точек в активную страницу.
+
+        push bx                         ; Перенести, чтобы убрать вызов.
+        push cx                         ; Производительность не важна, поэтому
+        mov cx,SPACE_STARS              ;лучше наверное оставить читабельность.
+        mov bx,stars_xyz
+DrS3D1A:mov al,[bx + 006h]
+        call near VXSetPixel3D          ; Ставим 3Д точку и переходим далее.
+        add bx,SPACE_STAR_SIZE
+        loop DrS3D1A
         pop cx
-
-;Press any key for debug.
+        pop bx
+        xor bl,00000101b                ; Переключаем видео страницы.
+        pop cx
+        push bx                         ; Печать символ строки.
         push ax
-        mov ah,00h
-        ;int 16h
-        pop ax
-
-        push bx                                 ;
-        push ax
-        lea bx,space_3D_txt
-        mov ah,01100000b
+        mov bx,space_3D_txt
+        mov al,001h                     ; Печать по одному символу.
+        mov ah,00000000b
         mov dx,bp
         call near VXPrintString
-        sub word [vx_cursor_x],08h
-        test cx,0001h
+        test cx,0001h                   ; Четность для видео страниц.
+        jz short Space3
+        inc bp                          ; Увеличиваем смещение тектса.
+        add word [vx_cursor_x],008h
+        cmp word [vx_cursor_x],GFX_SCR_WIDTH
         jnz short Space3
-        add word [vx_cursor_x],08h
-        inc bp
+        mov word [vx_cursor_x],SPACE_TEXT_X
+        add word [vx_cursor_y],008h     ; Следующая строка по вертикали.
 Space3: pop ax
         pop bx
-        loop Space1                             ;Main cycle.
-
-        add di,0006h
+        loop Space1                     ; Замыкание основного цикла.
+        add di,0006h                    ; Следующее направление движения.
         dec bh
         jnz short Space2
-
+        pop es                          ; Восстанавливаем регистры и выходим.
         pop bp
         pop di
         pop si
@@ -780,51 +757,50 @@ Space3: pop ax
         popf
         ret
 
-;DS:DI - moving directions with words.
+; Движение или смещение точек в пространстве по таблице направлений.
+; DS:DI - moving directions with words.
 
 MoveSpace3D:
-        pushf
+        pushf                           ; Сохраняем только необходимые регистры.
         push ax
         push bx
         push cx
         push di
-
-        lea bx,stars_xyz
-        xor cl,cl
+        mov bx,stars_xyz                ; Адрес полной таблицы звёзд в BX.
+        xor cl,cl                       ; Странный код... ;)
         xor ch,ch
-MovS3D1:mov ax,[bx]
-        add ax,[di]                     ;Add X.
-        ;jc short MovS3D2
-        cmp ax,SPACE_MASK_X             ;2D projection coordinate, not do.
+MovS3D1:mov ax,[bx]                     ; Загруаем координату X звезды и
+        add ax,[di]                     ;проверяем, если она покинула пределы,
+        cmp ax,SPACE_MASK_X             ;то создаем новую звезду.
         jnc short MovS3D2
-        mov [bx],ax
-        mov ax,[bx+02h]
-        add ax,[di+02h]                 ;Add Y.
-        ;jc short MovS3D2
-        cmp ax,SPACE_MASK_Y             ;2D projection coordinate, not do.
+        mov [bx],ax                     ; Аналогично другие координаты.
+        mov ax,[bx + 002h]
+        add ax,[di + 002h]              ; Добавляем координату Y.
+        cmp ax,SPACE_MASK_Y
         jnc short MovS3D2
-        mov [bx+02h],ax
-        mov ax,[bx+04h]
-        add ax,[di+04h]                 ;Add Z.
+        mov [bx + 002h],ax
+        mov ax,[bx + 004h]
+        add ax,[di + 004h]              ; Добавляем координату Z.
         cmp ax,SPACE_MASK_Z
         jnc short MovS3D2
-        mov [bx+04h],ax
+        mov [bx + 004h],ax
         jmp short MovS3D3
-MovS3D2:mov al,ch                       ;Store.
-        mov ah,01h
+MovS3D2:mov al,ch                       ; Добавляем звезду с индексом равным
+        mov ah,001h                     ;выбывшей за пределы пространства.
         call near CreateStars3D
-MovS3D3:add bx,SPACE_STAR_SIZE
-        inc ch
+MovS3D3:add bx,SPACE_STAR_SIZE          ; Смещение структуры данных типа звёзда
+        inc ch                          ;в байтах и переходим на следующую.
         cmp ch,SPACE_STARS
-        jnz short MovS3D1
-
-        pop di
+        jnz short MovS3D1               ; Замыкаем цикл по всем звёздам,
+        pop di                          ;восстанавливаем регистры и выходим.
         pop cx
         pop bx
         pop ax
         popf
         ret
 
+; Полная отрисовка космоса, всех точек, вспомогательная процедура, можно в
+;основной эффект перенести или оставить.
 DrawSpace3D:
         pushf
         push ax
@@ -842,103 +818,129 @@ DrS3D1: mov al,[bx+06h]
         popf
         ret
 
-;Set pixel 3D. AL - color, BX - address of coordinates(X,Y,Z).
+; Установка точки в 3Д пространстве, вынести процедуру в библиотеку!
+; Вход:
+;AL     цвет точки по таблице;
+;BX     адрес координат (X,Y,Z), в словах.
+; Выход: измененный видеобуфер активной страницы.
 
 VXSetPixel3D:
-        pushf
+        pushf                           ; Сохраняем флаги и регистры.
         push ax
         push cx
         push dx
-        push bp
         push si
-
-        mov bp,ax
-        mov si,[bx+04h]                 ;Z parameter.
-        test si,si
-        jz short SPix3D0
+        push bp
+        mov bp,ax                       ; Почему-то регистр BP, а не DI.
+        mov si,[bx + 004h]              ; Загружаем координату Z и если она
+        test si,si                      ;нуль, то отсекаем т.к. камера условно
+        jz short SPix3D0                ;в нуле, смещения выше. На 0 не делим!
         xor dx,dx
-        mov ax,[bx]                     ;Coordinate x.
-        sub ax,CENTER_3D_X
-        jnc short SPix3D1
-        not dx                          ;Negative.
-        idiv si
-        jmp short SPix3D2
-SPix3D1:div si                          ;Unsigned.
-SPix3D2:add ax,GFX_SCR_WIDTH / 2
-        mov cx,ax                       ;X position.
-        xor dx,dx
-        mov ax,[bx+02h]                 ;Y
-        sub ax,CENTER_3D_Y
-        jnc short SPix3D3
+        mov ax,[bx]                     ; Загружаем координату X и вычитаем
+        sub ax,CENTER_3D_X              ;условный центра пространства.
+        jnc short SPix3D1               ; DIV AX:DX(32) / SI(16).
+        not dx                          ; Расширяем бит знака на DX, старшую
+        idiv si                         ;и делим на глубину Z.
+        jmp short SPix3D2               ; Если деление не потребовало знака,
+SPix3D1:div si                          ;то в DX просто остается 0.
+SPix3D2:add ax,GFX_SCR_WIDTH / 2        ; Добавляем условный центр, т.е.
+        mov cx,ax                       ;координату отрицательна, то точка
+        xor dx,dx                       ;устанавливается левее, иначе - правее.
+        mov ax,[bx + 002h]
+        sub ax,CENTER_3D_Y              ; Аналогично рассчитываем координату по
+        jnc short SPix3D3               ;вертикали Y, деление равнозначное.
         not dx
         idiv si
         jmp short SPix3D4
 SPix3D3:div si
 SPix3D4:add ax,GFX_SCR_HEIGHT / 2
-
-        cmp ax,SPACE_VMASK              ;Dirty trick for text, remove in lib!
-        jnc short SPix3D0
-
-        xchg cx,ax                      ;Position Y
-        mov dx,ax
-        mov ax,bp
-        xor ah,ah                       ;Al - color.
+        cmp ax,SPACE_VMASK              ; Грязная трюк для отсечения места для
+        jnc short SPix3D0               ;текста.
+        xchg cx,ax
+        mov dx,ax                       ; Заполняем регистры для установки
+        mov ax,bp                       ;обычного 2Д пикселя на экране.
+        xor ah,ah                       ;AL - требуется только цвет.
         call near VXSetPixel
-
-SPix3D0:pop si
-        pop bp
+SPix3D0:pop bp                          ; Восстанавливаем регистры и выходим.
+        pop si
         pop dx
         pop cx
         pop ax
         popf
         ret
 
-;al - star index
-;ah - counter
+; Процедура создания звезд(ы), т.е. генерация координат с учетом параметров,
+;все данные сохраняются в таблицу звёзд ниже.
+; Вход:
+;AL     стартовый индекс звезды;
+;AH     количество звёзд для генерации или 1 для одной.
 
 CreateStars3D:
-        pushf
+        pushf                           ; Сохраняем флаги и регистры.
         push ax
         push bx
         push cx
         push di
         xor cx,cx
-        xchg ch,ah
-        lea di,stars_xyz
-        mov cl,03h
-        shl ax,cl
-        add di,ax                       ;Star X.
+        xchg ch,ah                      ; CH сохраним счётчик, т.к. AX нужен.
+        lea di,stars_xyz                ; Расчитываем смещение в таблице звёзд.
+        mov cl,003h                     ; Умножение на 8, с резервом вынести в
+        shl ax,cl                       ;константу для корректности.
+        add di,ax                       ; Смещаемся на нужную структуру.
         mov cl,ch
-CrStar2:xor ax,ax
-        call near RandomSimple
+CrStar2:xor ax,ax                       ; Вызываем генератор случайных чисел и
+        call near RandomSimple          ;применяем маску по размерности X.
         and ax,SPACE_MASK_X
-CrStar0:mov [di],ax                     ;Store X.
+CrStar0:mov [di],ax                     ; Сохраняем координату.
         xor ax,ax
-        call near RandomSimple
-        and ax,SPACE_MASK_Y
-        mov [di+02h],ax                 ;Store Y.
+        call near RandomSimple          ; Аналогично действуем для остальных
+        and ax,SPACE_MASK_Y             ;координат Y и Z, сохраняя в таблицу.
+        mov [di + 002h],ax
         xor ax,ax
         call near RandomSimple
         and ax,SPACE_MASK_Z
-        test ax,ax
-        jnz short CrStar3
+        test ax,ax                      ; Дополнительная заглушка чтобы лишний
+        jnz short CrStar3               ;раз не вызывать генератор, просто 1.
         inc ax
-CrStar3:mov [di+04h],ax                 ;Store Z.
+CrStar3:mov [di + 004h],ax
         xor ax,ax
         call near RandomSimple
-        and ax,SPACE_COLORS
-        ;add ax,0010h                   ;Was removed from release.
-        mov [di+06h],ax
-        add di,SPACE_STAR_SIZE
-        inc ch
-        dec cl
+        and ax,SPACE_COLORS             ; Оставлять или нет совсем темные точки.
+        ;add ax,0010h
+        mov [di + 006h],ax
+        add di,SPACE_STAR_SIZE          ; Смещаемся на следующую структру
+        inc ch                          ;звезды, увеличиваем индекс, уменьшаем
+        dec cl                          ;счётчик и замыкаем основной цикл.
         jnz short CrStar2
-        pop di
+        pop di                          ; Восстанавливаем регистры и выходим.
         pop cx
         pop bx
         pop ax
         popf
         ret
+
+; Формат звезды: координаты пространства(X,Y,Z) и индекс цвета, всего 4 слова.
+stars_xyz:      db SPACE_STAR_SIZE * SPACE_STARS dup (000h)
+; Таблица направлений движения, по смещениям координат и скорости.
+stars_move:     dw 00000h, SPACE_OFFS, SPACE_SPEED
+                dw -SPACE_OFFS, SPACE_OFFS, SPACE_SPEED
+                dw -SPACE_OFFS, 00000h, SPACE_SPEED
+                dw -SPACE_OFFS, -SPACE_OFFS, SPACE_SPEED
+                dw 00000h, -SPACE_OFFS, SPACE_SPEED
+                dw SPACE_OFFS, -SPACE_OFFS, SPACE_SPEED
+                dw SPACE_OFFS, 00000h, SPACE_SPEED
+                dw SPACE_OFFS, SPACE_OFFS, SPACE_SPEED
+                dw 00000h, 00000h, SPACE_SPEED
+
+space_3D_txt    dw 00F0h
+                dw 0004h
+                db '|Elementary 3D Space, filled with stars|'
+                db 'and using both video pages with V-Sync.|'
+                db '|Who is the Dangerous in Elite?! :)    |'
+                db '|VRAM is 256Kb contains four bit-planes|'
+                db 'with some hardware acceleration tricks.|'
+                db '|Mode-X: 3 pages of 75Kb and 31Kb free.|'
+
 
 
 ;3. Анимация косинуса с использованием математического сопроцессора.
