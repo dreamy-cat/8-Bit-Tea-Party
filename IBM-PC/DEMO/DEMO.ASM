@@ -12,6 +12,14 @@
 ; Звуковая плата: Adlib/SB16(OPL2/OPL3).
 ; Формат файла: .COM, 64Kb, дополнительно сервисы DOS-а для управления памяти.
 
+; Оставшиеся задачи, без изменения формата Демонстрации или содержания:
+; - проверить код на реальной ретро-платформе, не работает сопроцессор 8087,
+;   возможно требуются дополнительные команды ожидания после инициализации
+;   и/или сохрании/згрузке данных с поправкой на шину, пока неясно.
+; - если появится возможность, то можно попробовать дополнить музыкой,
+;   базовый код для OPL2 уже имеется, но возможно потребуется декодер модулей,
+;   итоговое видое полностью без аудио дорожки.
+
 ; Директивы для NASM. Команды процессора 8086 и сопроцессор 8087.
 
 CPU 8086
@@ -22,47 +30,53 @@ CPU 8086
 %include "vga-x.asm"                    ; Имена для графической библиотеки.
 
 DEMO_RAND_INIT  EQU 0FA0Fh              ; Начальное псевдо-случаное значение.
-DEMO_FADE_SPEED EQU 001h                ; Скорость работы эффекта затенения.
-BIOS_GET_SCR    EQU 00Fh                ; Имена для вызовов БИОС-а.
+DEMO_FADE_SPEED EQU 001h                ; Скорость эффекта затенения 1/64 сек.
+DEMO_DELAY      EQU 0001Eh              ; Задержка демонстрации на старте и в
+                                        ;конце. В 1/60 кадра. Требовалось для
+                                        ;редактирования видео, дополнительно.
+BIOS_GET_SCR    EQU 00Fh                ; Имена для вызова функций БИОС-а.
 BIOS_SET_SCR    EQU 000h
 BIOS_READ_KEY   EQU 000h
-DOS_RESIZE_MEM  EQU 04Ah                ; Имена для вызовов сервисов ДОС-а.
+DOS_RESIZE_MEM  EQU 04Ah                ; Имена для вызова сервисов ДОС-а.
 DOS_ALLOC_MEM   EQU 048h
 DOS_FREE_MEM    EQU 049h
-
 
         org 00100h                      ; Смещение и установка IP для .COM.
         pushf                           ; Сохраняем флаги(необязательно) и
         mov ah,BIOS_GET_SCR             ;оригинальный текстовый видеорежим.
         int 10h
         mov [screen_mode],al
-        mov ah,04Ah                     ; Изменение размера сегмента, и
+        mov ah,DOS_RESIZE_MEM           ; Изменение размера сегмента, и
         mov bx,01000h                   ;освободжение памяти за 64Кб кода,
         int 21h                         ;размерности в параграфах или 16 байт.
+        jc short Demo0
 
         call near VXSetModeX            ; Устанавливаем графический режим Х,
-        xor al,al                       ;устанавливаем активную видео страницу 0
-        call near VXSetActDispPage      ;и очищаем полностью видео буфер(256Кб)
-                                        ;нуль цветом.
-        xor al,al
-        mov ah,00001111b
-        call near VXClearVRAM           ; Загружаем шрифт из ПЗУ видео адаптера,
+        xor al,al                       ;активную видео страницу 0 и очищаем
+        call near VXSetActDispPage      ;полностью буфер(256Кб) нуль цветом.
+        ;call near VXFadeOut
+        ;mov ah,00001111b
+        ;call near VXClearVRAM           ; Загружаем шрифт из ПЗУ видео адаптера,
         call near VXLoadFontBIOS        ;стандартный VGA.
         mov ax,DEMO_RAND_INIT           ; Инициализация генератора случайных
         call near RandomSimple          ;чисел в статичной памяти.
-
+        mov cx,DEMO_DELAY
+Demo1:  call near VXWaitVSync           ; Задержка в 0.5 - 1.0 секунды перед
+        loop Demo1                      ;стартом, для редактирования видео.
         ;call near IntroVGAX
         ;call near VXFadeOut
         ;call near Plasma
         ;call near VXFadeOut
-        call near Space3D              ; Вызов всех эффектов с переходом.
+        ;call near Space3D              ; Вызов всех эффектов с переходом.
         ;call near VXFadeOut
-        ;call near CosineAnimation
+        call near CosineAnimation
         ;call near VXFadeOut
         ;call near FlamesOutro
         ;call near VXFadeOut
-
-        mov ah,BIOS_READ_KEY            ; Ожидание нажатия, временно.
+        mov cx,DEMO_DELAY
+Demo2:  call near VXWaitVSync
+        loop Demo2
+Demo0:  mov ah,BIOS_READ_KEY            ; Ожидание нажатия, временно.
         int 16h
         mov ah,BIOS_SET_SCR             ; Восстанавливем режим, флаги и выходим.
         mov al,[screen_mode]
@@ -74,37 +88,36 @@ DOS_FREE_MEM    EQU 049h
 ; 1. Вступление и вертикальная палитра VGA адаптера по компонентам цветов и
 ;градиент монохромного вывода текста, с технической информацей по железу.
 ; Эффект выполняется в одной видео странице с задержкой по ходу луча.
+; Выбранное время для реализации, примерно 10 секунд.
+; Варианты: 15сек, 0120h, 10сек, 000B2h. Без учета стартовой задержка.
 
-INTRO_MAIN      EQU 00100h              ; Размер основного цикла анимации.
+INTRO_MAIN      EQU 000B2h              ; Размер основного цикла анимации.
 INTRO_DRAW_MAX  EQU 00080h              ; Ограничитель рисования линий.
-INTRO_TITLE_X   EQU 00050h              ; Стартовые позиции текста и размер.
+INTRO_TITLE_X   EQU 00050h              ; Стартовые позиции заголовка и размер.
 INTRO_TITLE_Y   EQU 00010h
-INTRO_TITLE_SY  EQU 00014h              ; Размерность текста заголовка.
+INTRO_TITLE_SY  EQU 00014h              ; Размерность(масштаб) текста заголовка.
 INTRO_TITLE_N   EQU 0000Ah              ; Новая строчка для заголовка.
-INTRO_TEXT_NEXT EQU 00014h              ; Вниз.
-INTRO_TEXT_X    EQU 00008h              ;Change coordinates even with space.
-INTRO_TEXT_Y    EQU 000C0h              ;Дополнительный текст, мелким шрифтом.
 INTRO_COLOR_1   EQU 0FFh                ;Цвет текста, заголовка.
-INTRO_COLOR_2   EQU 07Fh                ;Цвет текста комментария.
-INTRO_VLINE_Y1  EQU 0003Ch              ;60 - for 120.
-INTRO_VLINE_Y2  EQU 000B4h              ;180.
+INTRO_TEXT_NEXT EQU 00014h              ; Индекс перехода на текст описания.
+INTRO_TEXT_X    EQU 00000h              ; Координаты текста описания эффекта
+INTRO_TEXT_Y    EQU 000C0h              ;снизу обычным размером шрифта.
+INTRO_COLOR_2   EQU 07Fh                ;Цвет текста описания.
+INTRO_VLINE_Y1  EQU 0003Ch              ; Координаты точек для вертикальных
+INTRO_VLINE_Y2  EQU 000B4h              ;линий, от 60 до 180. Длина всего 120.
 
-; Добро пожаловать на Чай! Создавая игровой движок(движок игры) для реального
-;режима процессора 8086, видеоадаптера ВГА и известного в 90-ые(интересного)
-;режима Х, мы реализовали простые и классические алгоритмы эпохи начала
-;демосцены.
-; История: ВГА Моде-Х. Разрешение 320 на 240 точек и 256 цветов.
-;Палитра адаптера 256К цветов, по 6 бит на компонент.
+; Добро пожаловать на Чай! Создавая наш движок игры для ретро-платформы
+;реального процессора 8086(88), видеоадаптера ВГА и широко известного в 90-ые
+;режима Mode-Х, мы реализовали классические алгоритмы демосцены той эпохи в
+;палитре 256 цветов и 6-битных копомнентов Красногро-Зеленого-Синнег-Белого!
 
-vga_intro_txt   dw 000DCh
+vga_intro_txt   dw 000B4h
                 dw 0004h
                 db 'WELCOME TO'
                 db 'TEA PARTY!'
-                db ' While creating game engine for 8086 CPU'
-                db 'and VGA famous Mode-X our team released '
-                db 'various classic effects of demoscene!   '
-                db ' Resolution: 320x240 pixels, 256 colors;'
-                db ' Palette: 256K and 6-bit RGB component. '
+                db '  While creating a game engine for the  '
+                db ' 8086 and VGA Mode-X, our team released '
+                db ' a handful of classic demoscene effects '
+                db '    in 256 colors and 6-bit RGB!        '
 
 IntroVGAX:
         pushf                           ; Сохраняем все регистры и флаги.
@@ -115,10 +128,10 @@ IntroVGAX:
         push si
         push di
         push bp
-        call near VXSetFullDAC          ; Устанавливаем палитру по умолчанию,
-        mov ax,00100h                   ;и все компоненты. Очищаем 0 страницу
-        call near VXClearVRAM           ;видеобуфера, назначаем её активной и
-        call near VXSetActDispPage      ;заносим глобальные переменные текста.
+        mov ax,00100h                   ; Очищаем 0 страницу видеобуфера,
+        call near VXClearVRAM           ;назначаем её активной и заносим
+        call near VXSetActDispPage      ;глобальные переменные текста.
+        call near VXSetFullDAC          ; Устанавливаем палитру по умолчанию.
         mov word [vx_cursor_x],INTRO_TITLE_X
         mov word [vx_cursor_y],INTRO_TITLE_Y
         mov byte [vx_font_color],INTRO_COLOR_1
@@ -136,9 +149,6 @@ IntroVGAX:
 Intro4: call near VXWaitVSync           ; Начало кадра рисования линий.
         cmp bp,INTRO_DRAW_MAX
         jae short Intro6
-        ;test bp,00001h
-        ;jnz short Intro7
-
         mov al,bl
         add bl,002h                     ; Т.к. идем через одну линию, то
         mov dx,si                       ;изменения сразу +2 по цвету и
@@ -160,14 +170,11 @@ Intro1: call near VXSetPixel            ; Рисуем вторую вертикальную линию.
         inc cx
         cmp cx,INTRO_VLINE_Y2
         jnz short Intro1
-
-Intro7: call near VXWaitVSync           ; Печать одного символа в кадр.
-        push bx
-        push dx
+Intro7: call near VXWaitVSync           ; Печать одного символа в 3-ий кадр,
+        push bx                         ;также без замедлителя, т.к. это
+        push dx                         ;быстрый эффект в целом и 4 строки.
         mov bx,vga_intro_txt
         mov dx,bp
-        ;shl dx,1                       ; Смещение печатаемого символ 1:1.
-        ;jc short ...
         mov al,001h
         mov ah,11000001b                ; Установка масштаба печати.
         cmp dx,INTRO_TEXT_NEXT
@@ -183,14 +190,13 @@ Intro2: call near VXPrintString         ; Печать символа и восстановление
         add word [vx_cursor_y],INTRO_TITLE_SY
         jmp short Intro5
 Intro5: cmp bp,INTRO_TEXT_NEXT
-        jne short Intro3
+        jne short Intro3                ; Если переход на текст описания.
         mov byte [vx_font_color],INTRO_COLOR_2
         mov word [vx_cursor_x],INTRO_TEXT_X
         mov word [vx_cursor_y],INTRO_TEXT_Y
 Intro3: cmp bp,INTRO_MAIN
-        jne Intro4
-
-        pop bp
+        jne Intro4                      ; Замыкаем основной цикл.
+        pop bp                          ; Восстанавливаем регистры и флаги.
         pop di
         pop si
         pop dx
@@ -205,8 +211,8 @@ Intro3: cmp bp,INTRO_MAIN
 ; Второй вариант эффекта Плазмы. Цвета с оттенком зеленого-желтого.
 ; Кадров примерно 30, высота 64 точки. Параметры для функции: 5.0 и 25.0.
 ; Чуть по ощущениям больше секций появилось в картинке и чуть быстрее меняется.
-; Общее время демонстрации эффекта примерно 30 секунд, это уже близко к цели,
-;печать примерно 6 строк описания успевает. Но кадров всё еще также. :)
+; Длительность эффекта в итоге 25 секунд, скорость текста сколько возможно.
+; Варинаты: 25с, 001E0h; 30с, 00240h; быстрый 20c, 00170h.
 
 ; Формула в коде: Table[y,x] = Round(sin(sqrt(sqr(x)+sqr(y))/A)*B);
 ; Базовый вариант формулы от времени анимации и растояния:
@@ -222,10 +228,10 @@ PLASMA_HEIGHT           EQU 00040h      ;вычисляется от высоты.
 PLASMA_LEFT             EQU 000h        ; Отлично, есть окно отображения.
 PLASMA_TOP              EQU (GFX_SCR_HEIGHT - PLASMA_HEIGHT) / 2
 ; "Уплотнение" потока по маске, регулировка в основном по вертикали.
-PLASMA_WIDTH_MASK       EQU 01FFh       ; 2^roundup(log2(PLASMA_WIDTH)) - 1
-PLASMA_HEIGHT_MASK      EQU 003Fh       ; 2^roundup(log2(PLASMA_HEIGHT)) - 1
+PLASMA_WIDTH_MASK       EQU 01FFh       ; 2^roundup(log2(PLASMA_WIDTH)) - 1.
+PLASMA_HEIGHT_MASK      EQU 003Fh       ; 2^roundup(log2(PLASMA_HEIGHT)) - 1.
 PLASMA_OFFS_SIZE        EQU 008h        ; Размеры таблиц смещения 4 слова.
-PLASMA_LOOP_COUNT       EQU 280h        ; Общий цикл для всего эффекта.
+PLASMA_LOOP_COUNT       EQU 001E0h      ; Общий цикл для всего эффекта.
 PLASMA_TEXT_X           EQU PLASMA_LEFT ; Вывод текста.
 PLASMA_TEXT_Y1          EQU 00018h      ; Без формул подгоняем координаты сами.
 PLASMA_TEXT_Y2          EQU 000A8h
@@ -257,7 +263,7 @@ PlasmaPalLp1:
         xor dh,dh                       ; Синий оставляем равным 0.
         call near VXSetPalColor
         inc al
-        cmp al,020h                     ;Заполнили первые 32 цвета.
+        cmp al,020h                     ; Заполнили первые 32 цвета.
         jb short PlasmaPalLp1
 PlasmaPalLp2:
         mov ah,03Fh                     ; Заполняем вторую часть из 64 цветов.
@@ -295,13 +301,13 @@ Plasma0:
         mov es,ax                       ; ES - теперь таблица плазмы.
 ; Инициализация математического сопроцессора 8087 :) Проверить на железе!
         finit
-        fstcw word [control_reg]
-        mov ax,[control_reg]            ; В аккумулятор напрямую нельзя.
+        fstcw word [ctrl_reg_pls]
+        mov ax,[ctrl_reg_pls]           ; В аккумулятор напрямую нельзя.
 ; Рrecision Соntrol = 00b - single precision(точность чуть быстрее).
 ; Rounding Control = 00b - round to nearest value(округление к ближайший).
         and ah,11110000b                ; Или напрямую в память.
-        mov [control_reg],ax            ; И снова через память, т.к. 8087.
-        fldcw [control_reg]             ; Округление 32 бита.
+        mov [ctrl_reg_pls],ax           ; И снова через память, т.к. 8087.
+        fldcw [ctrl_reg_pls]            ; Округление 32 бита.
 
 ; Инициализация таблицы плазмы.
         xor di,di                       ; ES:DI адрес таблицы.
@@ -428,13 +434,13 @@ PlasmaLp6:
         mov word [plasma_h + si],0001h
 Plasma2:
         cmp ax,PLASMA_WIDTH - 2         ; Если достигли максимальной ширины и
-        jb short Plasma3                ; загадочных (-2), то параметр -1.
-        mov word [plasma_h + si],0FFFFh ; -1
+        jb short Plasma3                ; загадочных (-2), то параметр в -1.
+        mov word [plasma_h + si],0FFFFh
 Plasma3:
         add ax,[plasma_h + si]          ; К текущей координате Х прибавляем
         mov [plasma_x + si],ax          ;смещение или X[i] += H[i] ;)
         mov ax,[plasma_y + si]          ; Уже пред-умноженное значение Y.
-        cmp ax,1 * PLASMA_WIDTH         ; Почему-то сравнением с шириной плазмы
+        cmp ax,001h * PLASMA_WIDTH      ; Почему-то сравнением с шириной плазмы
         ja short Plasma4                ;и с фактором 1, возможно проба/отладка.
         mov word [plasma_v + si],0001h * PLASMA_WIDTH
 ; Заполняем если меньше или равно - шириной, или проверяем на площадь.
@@ -469,8 +475,8 @@ Plasma5:
 
         push ds
         mov ax,GFX_SCR_ADDR             ; DS - указывает на экран, т.к. ES у
-        mov ds,ax                       ;нас занят таблицей.
-        mov ah,001h                     ; Маска битового пала в AH.
+        mov ds,ax                       ;нас занят таблицей функции.
+        mov ah,001h                     ; Маска битового плана в AH.
         xor cx,cx                       ; CX - смещение в таблице.
 PlasmaLpPlane:
         mov al,02h                      ; Устанавливаем битовый план.
@@ -548,7 +554,7 @@ Plasma8:inc al                          ;меняем знак на противоположный.
         shl cx,1
 PlasmaA:mov dx,bp                       ; Смещение в тексте.
         shr dx,1                        ; Т.к. страницы две и текст должен быть
-        call near VXPrintString         ; Печатаем следующий символ.
+        call near VXPrintString         ;в обеих. Печатаем следующий символ.
         test bp,00001h                  ; Т.к. странцы 2.
         jz short PlasmaB                ; Переход в случае четного.
         add word [vx_cursor_x],cx
@@ -557,9 +563,7 @@ PlasmaA:mov dx,bp                       ; Смещение в тексте.
         mov word [vx_cursor_x],00000h
         add word [vx_cursor_y],cx       ; 8 или 16 смещените по вертикали.
 PlasmaB:pop cx
-        xor cl,00000101b                ; Смена видео странцы активной и
-        ;call near WasKeyPressed        ;отображаемой.
-        ;jc short PlasmaB
+        xor cl,00000101b                ; Смена видео страниц.
         inc bp                          ; Замыкание главного цикла + 1.
         cmp bp,00050h                   ; Смещаем курсор в описание ниже.
         jne short Plasma9
@@ -584,21 +588,19 @@ PlasmaR:pop es                          ; Восстанавлваем регистры и выходим.
         ret
 
 ; Данные для эффекта плазмы, основная таблица в динамической памяти.
-plasma_txt      dw 00028h + 00140h
+plasma_txt      dw 00028h + 000C8h
                 dw 00004h
                 db '  90S SCENE PLASMA  '
                 db ' SINUS DATA ON 8087 '
-                db '|   A classic of the 90s demoscene !   |'
-                db '|This warm plasma effect, is calculated|'
-                db '|  using a sine formula with qudratic  |'
-                db '|   surface coordinates. The dynamic   |'
-                db '| function data utilizes the 8087 math |'
-                db '|   coprocessor, drawing to both VRAM  |'
-                db '|  pages of VGA Mode-X. Feel the cozy  |'
-                db '|   colors during the snowy winter !   |'
+                db ' A classic 90s demoscene plasma effect  '
+                db '  calculated using a sine formula with  '
+                db '  quadratic dynimic surface functions.  '
+                db ' Powered by 8087 and a 20KB sine table. '
+                db '  Fell the warmth in the snowy winter!  '
+
 plasma_A        dd 5.0                  ; Коэфиценты для основной формулы.
 plasma_B        dd 25.0
-;control_reg     dw 00000h               ; Регистр 8087, вынести в общий.
+ctrl_reg_pls    dw 00000h               ; Регистр управления 8087.
 plasma_temp     dw 1 dup (0)            ; Временная переменная и таблицы
 plasma_x        dw 4 dup (0)            ;смещений по 8 байт для плазмы.
 plasma_y        dw 4 dup (0)
@@ -606,32 +608,35 @@ plasma_h        dw 4 dup (0)
 plasma_v        dw 4 dup (0)
 
 
-;Минимальный 3Д космос по направлениям движения и вперед.
-; Элементарное трехмерное пространство наполненное звездами с применением
-;двух видео страниц и вертикальной синхронизацией.
+; 3. Минимальный 3Д космос по направлениям движения часовой стрелки и вперед.
+; Элементарное трехмерное пространство наполненное цветными звездами с
+;применением двух видео страниц и вертикальной синхронизацией.
 ; Кто "Опасный" в Элите?! :)
-;Видеобуффер в 256 килобайт содержит четыре битовых плана с
-;простыми трюками аппаратного ускорения.
+; Видеобуффер в 256 килобайт содержит четыре битовых плана с простыми трюками
+;аппаратного ускорения.
 ; Структура режима Х: Три видеостраницы по 75 и 31 свободных килобайта.
+; Общая длительность формируется из направлений(1-2) и их длительности.
+; Итоговый вариант: 25 секунд, примерно 00Ch напрвлений, длительность 00074h.
+; Варианты: 20с, 00Ch, 0060h; 25сек(полные) 00Сh, 00078h.
 
 CENTER_3D_X     EQU 1000h               ; Центр проекции координат в виртуальном
 CENTER_3D_Y     EQU 1000h               ;пространстве.
-SPACE_DIRS      EQU 008h                ; Количество направлений движений и
-SPACE_MAIN      EQU 0050h               ;длина общего цикла, текст отдельно.
+SPACE_DIRS      EQU 00Ch                ; Количество направлений движений и
+SPACE_MAIN      EQU 0074h               ;длина общего цикла, текст отдельно.
 SPACE_STARS     EQU 0FFh                ; Звёзд в пространстве до 255.
 SPACE_TEXT_OFFS EQU 00780h              ; Смещение в странице снизу текста.
 SPACE_TEXT_X    EQU 00000h              ; Координаты начала вывода текста.
 SPACE_TEXT_Y    EQU 000C0h
 SPACE_COLOR     EQU 07Fh                ; Синий или голубой цвет текста.
-SPACE_COLORS    EQU 0FFh                ; Маска для цветов звезд.
-SPACE_STAR_SIZE EQU 08h                 ; Размер структуры данных для звёзд.
-SPACE_VMASK     EQU 00C0h               ; Маска для фона и текста на экране.
-SPACE_MASK_X    EQU 1FFFh               ; Маски для горизонтальной и
-SPACE_MASK_Y    EQU 1FFFh               ;вертикальной позиции звезды.
-SPACE_MASK_Z    EQU 00FFh               ; Маска для глубины звезды по оси Z.
-SPACE_OFFS      EQU 0080h               ; Смещение по координатам XY.
-SPACE_SPEED     EQU -003h               ; Скорость полёта или смещения по оси Z.
-; Вариации скорости, маски глуины и направлений.
+SPACE_COLORS    EQU 0FFh                ; Маска для цветов звезд, полный набор.
+SPACE_STAR_SIZE EQU 008h                ; Размер структуры данных для звёзд.
+SPACE_VMASK     EQU 000C0h              ; Маска для фона и текста на экране.
+SPACE_MASK_X    EQU 01FFFh              ; Маски для горизонтальной и
+SPACE_MASK_Y    EQU 01FFFh              ;вертикальной позиции звезды.
+SPACE_MASK_Z    EQU 0007Fh              ; Маска для глубины звезды по оси Z.
+SPACE_OFFS      EQU 00080h              ; Смещение по координатам XY.
+SPACE_SPEED     EQU -002h               ; Скорость полёта или смещения по оси Z.
+
 Space3D:
         pushf                           ; Сохраняем регистры и флаги на стек.
         push ax
@@ -645,18 +650,18 @@ Space3D:
         mov ax,GFX_SCR_ADDR
         mov es,ax
         cld
-        mov ax,00300h                   ; Очищаем 2 видео страницы.
-        call near VXClearVRAM
-        xor ax,ax                       ; Формируем полную палитру для звёзд,
-        xor dx,dx                       ;начиная с нулевого, полностью черного.
-SpPal1: call near VXSetPalColor
+        mov ax,00300h                   ; Очищаем 2 страницы и устанавливаем
+        call near VXClearVRAM           ;регистр ES и флаг направления чтобы
+        xor ax,ax                       ;не исполнять в основном цикле.
+        xor dx,dx                       ; Формируем полную палитру для звёзд,
+SpPal1: call near VXSetPalColor         ;начиная с нулевого, полностью черного.
         inc al
-        inc ah                          ; Первые 64 цвета, обычный набот из
+        inc ah                          ; Первые 64 цвета, обычный набор из
         inc dl                          ;градаций белого. Все компоненты растут
         inc dh                          ;равномерно.
         cmp al,040h
         jnz short SpPal1
-        xor ah,ah                       ; Снова очищаем все компоненты.
+        xor ah,ah                       ; Снова очищаем компоненты цветов.
         xor dx,dx
 SpPal2: call near VXSetPalColor
         inc dh                          ; Вторые 64 цвета, смешиваем только
@@ -686,12 +691,11 @@ SpPal4: call near VXSetPalColor
         xor al,al                       ; Для удобства оформляем создание звезд
         mov ah,SPACE_STARS              ;в отдельную процедуру и первый вызов
         call near CreateStars3D         ;генерирует полный набор данных.
-
         mov di,stars_move
-        mov bh,SPACE_DIRS
+        mov bh,SPACE_DIRS               ; Количество направлений полета.
         mov bl,00000001b                ; Выбор активной страницы.
         xor bp,bp                       ; Смещение текста.
-Space2: mov cx,SPACE_MAIN               ; Начало основного цикла.
+Space2: mov cx,SPACE_MAIN               ; Начало основного цикла Космоса.
 Space1: push cx
         call near VXWaitVSync           ; Начало переключения отображения
         mov al,bl                       ;активного кадра.
@@ -704,7 +708,7 @@ Space1: push cx
         mov cx,GFX_PAGE_SIZE_W - SPACE_TEXT_OFFS
         mul dx
         mov di,ax                       ; DI - адрес назначения или можно
-        mov al,00001111b                ;применить вызов процедуры (не выйдет).
+        mov al,00001111b                ;применить вызов новой процедуры.
         call near VXSetPlanes
         xor ax,ax
         rep stosw                       ; Очистка всех планов сразу.
@@ -712,10 +716,9 @@ Space1: push cx
         pop cx
         call near MoveSpace3D           ; Смещение звёзд в таблице и отрисовка
         ;call near DrawSpace3D          ;точек в активную страницу.
-
-        push bx                         ; Перенести, чтобы убрать вызов.
-        push cx                         ; Производительность не важна, поэтому
-        mov cx,SPACE_STARS              ;лучше наверное оставить читабельность.
+        push bx                         ;
+        push cx
+        mov cx,SPACE_STARS              ; Производительности достаточно.
         mov bx,stars_xyz
 DrS3D1A:mov al,[bx + 006h]
         call near VXSetPixel3D          ; Ставим 3Д точку и переходим далее.
@@ -725,16 +728,18 @@ DrS3D1A:mov al,[bx + 006h]
         pop bx
         xor bl,00000101b                ; Переключаем видео страницы.
         pop cx
-        push bx                         ; Печать символ строки.
+        push bx                         ; Печать символа строки без переноса.
         push ax
         mov bx,space_3D_txt
         mov al,001h                     ; Печать по одному символу.
         mov ah,00000000b
         mov dx,bp
         call near VXPrintString
-        test cx,0001h                   ; Четность для видео страниц.
+        test cx,00002h                  ; Замедлитель на каждый 4-ый кадр.
         jz short Space3
-        inc bp                          ; Увеличиваем смещение тектса.
+        test cx,0001h                   ; Базовый замедлитель на четность.
+        jz short Space3
+        inc bp                          ; Увеличиваем смещение текста.
         add word [vx_cursor_x],008h
         cmp word [vx_cursor_x],GFX_SCR_WIDTH
         jnz short Space3
@@ -745,7 +750,7 @@ Space3: pop ax
         loop Space1                     ; Замыкание основного цикла.
         add di,0006h                    ; Следующее направление движения.
         dec bh
-        jnz short Space2
+        jnz Space2
         pop es                          ; Восстанавливаем регистры и выходим.
         pop bp
         pop di
@@ -769,7 +774,7 @@ MoveSpace3D:
         mov bx,stars_xyz                ; Адрес полной таблицы звёзд в BX.
         xor cl,cl                       ; Странный код... ;)
         xor ch,ch
-MovS3D1:mov ax,[bx]                     ; Загруаем координату X звезды и
+MovS3D1:mov ax,[bx]                     ; Загружаем координату X звезды и
         add ax,[di]                     ;проверяем, если она покинула пределы,
         cmp ax,SPACE_MASK_X             ;то создаем новую звезду.
         jnc short MovS3D2
@@ -793,25 +798,6 @@ MovS3D3:add bx,SPACE_STAR_SIZE          ; Смещение структуры данных типа звёзда
         cmp ch,SPACE_STARS
         jnz short MovS3D1               ; Замыкаем цикл по всем звёздам,
         pop di                          ;восстанавливаем регистры и выходим.
-        pop cx
-        pop bx
-        pop ax
-        popf
-        ret
-
-; Полная отрисовка космоса, всех точек, вспомогательная процедура, можно в
-;основной эффект перенести или оставить.
-DrawSpace3D:
-        pushf
-        push ax
-        push bx
-        push cx
-        mov cx,SPACE_STARS
-        lea bx, stars_xyz
-DrS3D1: mov al,[bx+06h]
-        call near VXSetPixel3D
-        add bx,SPACE_STAR_SIZE
-        loop DrS3D1
         pop cx
         pop bx
         pop ax
@@ -854,12 +840,12 @@ SPix3D2:add ax,GFX_SCR_WIDTH / 2        ; Добавляем условный центр, т.е.
         jmp short SPix3D4
 SPix3D3:div si
 SPix3D4:add ax,GFX_SCR_HEIGHT / 2
-        cmp ax,SPACE_VMASK              ; Грязная трюк для отсечения места для
-        jnc short SPix3D0               ;текста.
+        cmp ax,SPACE_VMASK              ; Грязный трюк для отсечения места для
+        jnc short SPix3D0               ;текста! Здесь оставить как есть! :)
         xchg cx,ax
         mov dx,ax                       ; Заполняем регистры для установки
         mov ax,bp                       ;обычного 2Д пикселя на экране.
-        xor ah,ah                       ;AL - требуется только цвет.
+        xor ah,ah                       ; AL - требуется только цвет.
         call near VXSetPixel
 SPix3D0:pop bp                          ; Восстанавливаем регистры и выходим.
         pop si
@@ -905,8 +891,7 @@ CrStar0:mov [di],ax                     ; Сохраняем координату.
 CrStar3:mov [di + 004h],ax
         xor ax,ax
         call near RandomSimple
-        and ax,SPACE_COLORS             ; Оставлять или нет совсем темные точки.
-        ;add ax,0010h
+        and ax,SPACE_COLORS             ; Маска, включая даже темные точки.
         mov [di + 006h],ax
         add di,SPACE_STAR_SIZE          ; Смещаемся на следующую структру
         inc ch                          ;звезды, увеличиваем индекс, уменьшаем
@@ -922,7 +907,9 @@ CrStar3:mov [di + 004h],ax
 ; Формат звезды: координаты пространства(X,Y,Z) и индекс цвета, всего 4 слова.
 stars_xyz:      db SPACE_STAR_SIZE * SPACE_STARS dup (000h)
 ; Таблица направлений движения, по смещениям координат и скорости.
-stars_move:     dw 00000h, SPACE_OFFS, SPACE_SPEED
+stars_move:     dw 00000h, 00000h, SPACE_SPEED
+                dw 00000h, 00000h, SPACE_SPEED
+                dw 00000h, SPACE_OFFS, SPACE_SPEED
                 dw -SPACE_OFFS, SPACE_OFFS, SPACE_SPEED
                 dw -SPACE_OFFS, 00000h, SPACE_SPEED
                 dw -SPACE_OFFS, -SPACE_OFFS, SPACE_SPEED
@@ -931,78 +918,24 @@ stars_move:     dw 00000h, SPACE_OFFS, SPACE_SPEED
                 dw SPACE_OFFS, 00000h, SPACE_SPEED
                 dw SPACE_OFFS, SPACE_OFFS, SPACE_SPEED
                 dw 00000h, 00000h, SPACE_SPEED
+                dw 00000h, 00000h, SPACE_SPEED
 
 space_3D_txt    dw 00F0h
                 dw 0004h
-                db '|Elementary 3D Space, filled with stars|'
-                db 'and using both video pages with V-Sync.|'
-                db '|Who is the Dangerous in Elite?! :)    |'
-                db '|VRAM is 256Kb contains four bit-planes|'
-                db 'with some hardware acceleration tricks.|'
-                db '|Mode-X: 3 pages of 75Kb and 31Kb free.|'
+                db ' Elementary 3D Space and endless stars! '
+                db '   Flying clockwise through a bright,   '
+                db ' randomized starfield at warp velocity. '
+                db ' In 3D Pixel we use a dirty code trick! '
+                db '  VGA VRAM: 150RB, 2 pages and V-Sync.  '
+                db '       Who is Dangerous in Elite?       '
 
 
-
-;3. Анимация косинуса с использованием математического сопроцессора.
-
-COS_TIMER       EQU 000D0h              ;Общий таймер для выравниваия времени.
-;COS_CENTER_Y    EQU 078h                ;120 для режима X, центр экрана.
-COS_OFFS_Y       EQU 00078h              ;Center for COS graphics.
-COS_HEIGHT      EQU 040h
-COS_WIDTH       EQU 00140h    ; 0013Bh              ;314 pixels for better PI. +1 for st.
-                                        ;13A - is correct value.
-RED_INDEX       EQU 000h                ;Indexes for default color palette.
-GREEN_INDEX     EQU 040h                ;Start component.
-BLUE_INDEX      EQU 080h
-MATH_TXT_SX     EQU 00000h
-MATH_TXT_SY     EQU 00018h
-MATH_TXT_X1     EQU 00000h
-MATH_TXT_Y1     EQU 000B0h
-MATH_TXT_NEXT   EQU 026h                ;Upper part of text lenght.
-MATH_TXT_COL1   EQU 0007Fh
-MATH_TXT_COL2   EQU 000FFh
-
-control_reg     dw 00000h
-value_x         dd 0.00
-cos_x           dd 0.1                 ;Full 2PI.
-cos_x_step      dd +0.00005
-cos_x_min       dd 0.1
-cos_x_max       dd 0.2
-cos_y           dd 04.0               ;Height of cosine.
-cos_y_int       dw 00004h
-cos_y_step      dd +1.0
-cos_y_min       dd 4.0
-cos_y_max       dd 16.0               ;Size of draw cos in pixels.
-fpu_data        dw 10h dup (0)
-cos_table       dw GFX_SCR_WIDTH dup (00000h)
-offset_x_anim   dd 0.04                 ;Offset X for every frame.
-anim_accel      dd 0.01
-sign_neg        dd -1.0
-pi_00           dd 0.00
-pi_14           dd 0.79
-pi_24           dd 1.57
-pi_34           dd 2.36
-pi_44           dd 3.14
-pi_54           dd 3.93
-pi_64           dd 4.71
-pi_74           dd 5.50
-pi_84           dd 6.28                 ;May be plus 1 or equal.
-
-anim_cos_txt    dw 00CAh
-                dw 0004h
-                db '  REALTIME MATH ON  '
-                db '  8087 COPROCESSOR'            ;Add space to config.
-                db ' Color animation of trigonometric cosine'
-                db 'using slow formula of tangent and '
-                db 'square root, but fully on mathematical  '
-                db 'coprocessor. 8086 became an artist...:) '
-                db '                                        '
-                ;db ' Precision: 32-bit single, real.        '
+; 4. Анимация косинуса с использованием математического сопроцессора.
 
 ; Косинус с градиентом в реальном времени на математическом сопроцессоре 8087.
-;Анимация тригонометрической функции косинус и стандартной палитры цвета
+; Анимация тригонометрической функции косинус и стандартной палитры цвета
 ;рассчитывается по классической формуле через тангенс с учетом знака. Шаг,
-;амплитуда и градиент от времени анимации настраиваемая.
+;амплитуда и градиент зависит от времени анимации, настраиваемая по вкусу.
 ; Точность вычислений: 32-битная, реальная, округление к ближайшему целому.
 
 ; Комментарий от Данилы и чуть более быстрый вариант первой версии (80287).
@@ -1022,15 +955,34 @@ anim_cos_txt    dw 00CAh
 ;       sahf
 ;       ja short DrSC1                  ; ST0 > Src (pi*6/4)
 
-;Flags bits using compare.
-;Operands:        C3:     C2:   C0:     Word to compare bit or mask:
+; Флаги сравнения значения на вершине тека 8087 и аргумента, сразу слова.
+;Операнды:        C3:     C2:   C0:     Слово для сравнения по битам и маске.
 ;ST(0) > SRC      0       0     0       00000h
 ;ST(0) < SRC      0       0     1       00100h
 ;ST(0) = SRC      1       0     0       04000h
-;Incomparable     1       1     1       04500h
+;Несравнимо:      1       1     1       04500h
+; Базовый вариант эффекта: почти 20 секунд, основной цикл 00230h, чуть короче.
+;Варианты: 002BCh, 001A0h. Полный без затенения: 00238h.
+
+COS_MAIN        EQU 00230h              ; Общий таймер для выравниваия времени.
+COS_CENTER_Y    EQU 078h                ; 120 для режима X, центр экрана.
+COS_HEIGHT      EQU 032h                ; Общая высота косинуса(для расчетов).
+COS_GRAD_SIZE   EQU 0000Ah              ; Размер градиента общий, в обе стороны.
+COS_GRAD_OFFS   EQU 005h                ; Изменение градиента, т.е. скорость.
+COS_WIDTH       EQU GFX_SCR_WIDTH       ; График по ширине экрана или 314, 2PI.
+COS_RED         EQU 03Fh                ; Стартовые индекс основных цветов в
+COS_GREEN       EQU 07Fh                ;нашей стандартной палитре.
+COS_BLUE        EQU 0BFh
+COS_TITLE_X     EQU 00000h              ; Позиции и цвета вывода заголовка на
+COS_TITLE_Y     EQU 00018h              ;экране и затем общий текст описания.
+COS_COLOR_1     EQU 0007Fh
+COS_TEXT_NEXT   EQU 028h                ; Смещение в строке на начало текста.
+COS_TEXT_X      EQU 00000h
+COS_TEXT_Y      EQU 000C0h
+COS_COLOR_2     EQU 000FFh
 
 CosineAnimation:
-        pushf
+        pushf                           ; Сохранение регистров в стек.
         push ax
         push bx
         push cx
@@ -1038,153 +990,122 @@ CosineAnimation:
         push si
         push di
         push bp
+        push es
+        mov ax,00300h
+        call near VXClearVRAM           ; Очищаем 2 видео страницы, полностью,
+        mov ax,GFX_SCR_ADDR             ;устанавливаем ES на начало буфера и
+        mov es,ax                       ;очищаем флаг направления.
+        cld
+        call near VXSetFullDAC          ; Инициализация полной стандратной
+        xor ax,ax                       ;палитры цветов VGA, как в Intro.
+        call near VXSetActDispPage      ; Используем только 0-ю видеостраницу.
+        mov word [vx_cursor_x],COS_TITLE_X
+        mov word [vx_cursor_y],COS_TITLE_Y
+        mov byte [vx_font_color],COS_COLOR_1
+        finit                           ; Инициализация 8087, глобальная правка.
+        fstcw word [control_reg]        ; Сохраняем регистр управления CR в
+        and word [control_reg],0F0FFh   ;память, маскируем только округление до
+        fldcw [control_reg]             ;ближайшего целого, точность 32 бита.
 
-        call near VXSetFullDAC
-        xor ax,ax
-        call near VXSetActDispPage      ;Using one page.
-        mov word [vx_cursor_x],MATH_TXT_SX
-        mov word [vx_cursor_y],MATH_TXT_SY
-        mov byte [vx_font_color],MATH_TXT_COL1
+; Основной цикл анимации, сначала вывод текста, расчет и после уже отрисовка.
+        mov bp,COS_MAIN                 ; Основной счётчик анимации косинуса.
+        xor si,si                       ; Смещение в тексте.
+; Печать с ожиданием сигнала, и по возможности максимальные вычисления.
+DrSCI:  call near VXWaitVSync           ; Первый кадр, печать символа текста,
+        mov cx,00010h                   ;т.к. таблицу косинуса еще расчитать.
+        mov bx,anim_cos_txt             ; CX размерность заголовка или текста.
+        mov al,001h
+        mov ah,01000001b
+        cmp si,COS_TEXT_NEXT
+        jc short DrSCP1
+        mov cx,00008h                   ; Если заголовок уже выведен, то
+        mov ah,01000000b                ;уменьшаем масштаб выводимого символа.
+        jnz short DrSCP1
+DrSCP1: mov dx,si
+        call near VXPrintString
+        test bp,00001h                  ; Задержка для смещения в тексте, для
+        jz short DrSCC                  ;снижения скорости его вывода.
+        inc si
+        cmp si,COS_TEXT_NEXT
+        jnz short DrSCP2
+        mov byte [vx_font_color],COS_COLOR_2
+        mov word [vx_cursor_x],COS_TEXT_X
+        mov word [vx_cursor_y],COS_TEXT_Y
+        jmp short DrSCC
+DrSCP2: add word [vx_cursor_x],cx       ; Измнения расчет координат вручную.
+        cmp word [vx_cursor_x],GFX_SCR_WIDTH
+        jnz short DrSCC
+        mov word [vx_cursor_x],COS_TEXT_X
+        add word [vx_cursor_y],cx       ; Перенос на следующую строку.
 
-        finit                           ;Init 8087.
-        fstcw word [control_reg]        ;CR to memory, with await.
-        and word [control_reg],0F0FFh   ;Reset all masks, trunc only save res.
-        fldcw [control_reg]             ;Round to near and 32-bits float.
-        mov bp,00102h ;ANIM_COS_TIMER           ;Animation cycle or debug.
-        xor si,si                       ;Text offset.
-
-DrSCC:  mov cx,GFX_SCR_WIDTH            ;Fix bug or leave as is. :)
-        mov di,cos_table
-
-DrSC0:  fld dword [value_x]             ;Draw full cosinus using CX counter.
-        fptan                           ;Top after, ST0 is 1.
-        fincstp                         ;Stack top to ST0.
-DrSC2:  fst ST1                         ;Save tan ST1 to ST0.
-        fmul ST0,ST1                    ;tg^2 ST0 * ST1.
-        fdecstp                         ;Was ST7 = 1 or use fld1.
-        fadd ST0,ST1                    ;(tg^2 + 1), ST0 + ST1.
-        fld1                            ;ST0 = 1.
-        fdiv ST0,ST1                    ;1 / (tg^2 + 1), ST0 / ST1.
-        fsqrt
-        fld dword [value_x]             ;Store position x and check for sign.
+; Расчет текущего состояния косинуса и обновление целочисленные таблицы.
+DrSCC:  mov cx,GFX_SCR_WIDTH            ; Здесь была какая-то ошибка, но она
+        mov di,cos_table                ;так и осталась не отмеченной! :)
+DrSC0:  fld dword [cos_x]               ; Рисование полного косинуса шириной CX.
+        fptan                           ; Состояние стеку 8087: ST0 = 1.
+        fincstp                         ; Вершина стека ST0.
+DrSC2:  fst ST1                         ; Сохраняем тангенс ST1 в ST0.
+        fmul ST0,ST1                    ; Вычисляем квадрат: tg^2 = ST0 * ST1.
+        fdecstp                         ; Было ST7 = 1 или можно FLD 1.
+        fadd ST0,ST1                    ; Добавляем: (tg^2 + 1), ST0 + ST1.
+        fld1                            ; Сохраняем на вершину: ST0 = 1.
+        fdiv ST0,ST1                    ; Деление: 1/(tg^2 + 1), ST0 / ST1.
+        fsqrt                           ; Вычисляем корень квадратный.
+        fld dword [cos_x]               ; Сохраняем значение X и проверяем знак.
         fcom dword [pi_24]
-        fstenv [fpu_data]               ;C0,C1 == 0 for ST0 > DATA, 8,10 bits.
+        fstenv [fpu_data]               ; C0,C1 == 0, ST0 > X, (таблица выше).
         test word [fpu_data + 002h],00500h
-        jnz short DrSC1                 ;Page 73.
+        jnz short DrSC1                 ; Если знак менять не нужно, 1/2 PI.
         fcom dword [pi_64]
         fstenv [fpu_data]
         test word [fpu_data + 002h],00500h
-        jz short DrSC1
-        fincstp                         ;Remove X position, store neg.
-        fld dword [sign_neg]
-        fmul ST0,ST1                    ;Change sign of result cosec.
+        jz short DrSC1                  ; Сравнение на 3/2 PI.
+        fincstp                         ; Увеличиваем вершину стека.
+        fchs                            ; *-1! Работает! :)
         jmp short DrSCB
-DrSC1:  fincstp                         ;To result of cosec.
-DrSCB:  fmul dword [cos_y]
-        frndint                         ;Convert to intger.
-        fistp word [di]                 ;Save to table and next X.
+DrSC1:  fincstp                         ; Вершина на косеканс, умножаем на
+DrSCB:  fmul dword [cos_y]              ;размер по вертикали, округляем до
+        frndint                         ;ближайшего целого и сохраняем в
+        fistp word [di]                 ;таблицу целых Y, увеличиваем индекс.
         add di,00002h
-
-        fld dword [value_x]
-        fadd dword [cos_x]
-        fcom dword [pi_84]              ;If period is more or equal than 2Pi.
-        fstenv [fpu_data]               ;SR - second word, 14 bit, equal C3.
-        mov ax,[fpu_data + 002h]
-        test ax,04000h                  ;May be not the case.
-        jnz short DrSCA1
+        fld dword [cos_x]               ; Смещение по координате Х, на шаг и
+        fadd dword [cos_x_step]         ;сравниваем с полным 2 PI, если период
+        fcom dword [pi_84]              ;больше или равен, то тогда вычитаем.
+        fstenv [fpu_data]
+        mov ax,[fpu_data + 002h]        ; Проверка на равность, скорее всего
+        test ax,04000h                  ;это не работает, т.к. нет точного
+        jnz short DrSCA1                ;соответствия.
         test ax,00500h
-        jnz short DrSCA                 ;Add because other bits set/reset.
-DrSCA1: fincstp
-        fldz                            ;To zero as cycle, sub 2Pi.
-DrSCA:  fstp dword [value_x]            ;Next x.
-        loop DrSC0
+        jnz short DrSCA                 ; Проверка на больше.
+DrSCA1: fsub dword [pi_84]              ; Вычитаем полный цикл, а не заносим
+DrSCA:  fstp dword [cos_x]              ;ноль, т.к. накапливается погршеность.
+        loop DrSC0                      ; Окончание расчета таблицы координат.
 
-        mov di,cos_table                ;Draw full cosinus.
-        xor dx,dx
-        call near VXWaitVSync           ;Starting drawing.
-        cmp bp,00002h
-        jnz short DrSCW
-        mov al,03Fh                     ;Only cosinus without colors.
-        jmp short DrSC3
-DrSCW:  mov al,07Fh
-DrSC3:  mov cx,COS_OFFS_Y               ;BX = Y.
-        sub cx,[di]                     ;Or ADD.
-        call near VXSetPixel
-
-        ;jmp short DrSCU
-
-; Clear part of screen or draw an 'glowing' of cos.
-        ;xor al,al
-        mov al,0C0h                     ;First variant only one color.
-        mov ah,080h
-        sub al,[cos_y_int]
-        sub al,[cos_y_int]
-        sub ah,[cos_y_int]
-        sub ah,[cos_y_int]
-        xor bx,bx
-DrSCT:  inc bx
-        push cx
-        add cx,bx
-        call near VXSetPixel
-        pop cx
-        push cx
-        sub cx,bx
-        xchg al,ah
-        call near VXSetPixel
-        xchg al,ah
-        pop cx
-        cmp al,080h
-        jbe short DrSCV
-        dec al
-DrSCV:  cmp ah,040h
-        jbe short DrSCX
-        dec ah
-DrSCX:  cmp bx,00040h
-        jnz short DrSCT
-
-DrSCU:  add di,00002h
-        inc dx
-        cmp dx,COS_WIDTH
-        jnz short DrSCW
-
-        ;jmp short DrSCH
-
-; Dynamic height for COS.
-
-        fld dword [cos_y]               ;STP = ?
-        fadd dword [cos_y_step]
-        fcom dword [cos_y_min]          ;If Y less than MIN.
-        fstenv [fpu_data]               ;SR - second word, 14 bit, equal C3.
+; Расчет смещения параметров косинуса на следеующий кадр анимации.
+        fld dword [cos_y]               ; Изменение высоты косинуса STP = ?,
+        fadd dword [cos_y_step]         ;на шаг заданный константой.
+        fcom dword [cos_y_min]          ; Если Y достиг минимального значения,
+        fstenv [fpu_data]               ;или меньше, слова параметров, см.выше.
         test word [fpu_data + 002h],00100h
         jnz short DrSCD
-        fcom dword [cos_y_max]          ;If Y more than MAX.
-        fstenv [fpu_data]
+        fcom dword [cos_y_max]          ; Если Y достиг максимального значения,
+        fstenv [fpu_data]               ;или больше то меняем знак шага.
         test word [fpu_data + 002h],04500h
-        jnz short DrSCE                 ;All bits must be reset.
-DrSCD:  fincstp                         ;If Y is out of range, then change
-        fld dword [cos_y_step]          ;sign of step.
-        fmul dword [sign_neg]
+        jnz short DrSCE
+DrSCD:  fincstp                         ; Загружаем заново знаенчие шага по Y,
+        fld dword [cos_y_step]          ;и меняем знак на противоположный.
+        fchs
         fstp dword [cos_y_step]
-DrSCE:  fld dword [cos_y]
-        fadd dword [cos_y_step]
-        fst dword [cos_y]               ;STP = 0?
-        ;fabs
-        frndint
-        fistp word [cos_y_int]          ;integer.
-
-        ;xor dx,dx
-        ;mov cx,[cos_y_int]
-        ;mov al,07Fh
-        ;call near VXSetPixel
-
-        jmp short DrSCI
-
-; Dynamic step x for COS.
-
-DrSCH:  fld dword [cos_x]
-        fadd dword [cos_x_step]
-        fcom dword [cos_x_min]
-        fstenv [fpu_data]
+DrSCE:  fld dword [cos_y]               ; Изменяем параметр Y в соответствии
+        fadd dword [cos_y_step]         ;с нашим шагом или направлением,
+        fst dword [cos_y]               ;возвращаем указатель на вершину и
+        frndint                         ;округляем до ближайщего целого.
+        fistp word [cos_y_int]          ; Сохраняем как обычное целое слово и
+        jmp short DrSCDr                ;не переходим к координате X.
+DrSCH:  fld dword [cos_x]               ; Динамическое смещение по координате X,
+        fadd dword [cos_x_step]         ;не используем, но оставим к коде, т.к.
+        fcom dword [cos_x_min]          ;графика получалась слишком хаотичной.
+        fstenv [fpu_data]               ; Расчет аналогичен координате Y.
         test word [fpu_data + 002h],00100h
         jnz short DrSCF
         fcom dword [cos_x_max]
@@ -1193,34 +1114,51 @@ DrSCH:  fld dword [cos_x]
         jnz short DrSCG
 DrSCF:  fincstp
         fld dword [cos_x_step]
-        fmul dword [sign_neg]
+        fchs
         fstp dword [cos_x_step]
 DrSCG:  fld dword [cos_x]
         fadd dword [cos_x_step]
         fstp dword [cos_x]
 
-DrSCI:  call near VXWaitVSync           ;Print char.
-        mov dx,si                       ;DX - text offset.
-        mov bx,anim_cos_txt
-        mov al,001h
-        mov ah,11000001b
-        cmp dx,MATH_TXT_NEXT
-        jc short DrSCP1
-        mov ah,11000000b
-        jmp short DrSCP2
-DrSCP1: call near VXPrintString
-        inc si
-        cmp si,MATH_TXT_NEXT
-        jne short DrSCP2
-        mov byte [vx_font_color],MATH_TXT_COL2
-        mov word [vx_cursor_x],MATH_TXT_X1
-        mov word [vx_cursor_y],MATH_TXT_Y1
-
-DrSCP2: ;fldz
-        ;fstp dword [value_x]
+; Начало полной отрисовки кадра графики, сначала ожидание луча и очистка памяти.
+DrSCDr: call near VXWaitVSync           ; Ожидаем луч и начинаем рисовать в
+        mov dx,VGA_SEQUENCER_ADDR       ;активно странице, ES уже на буффер.
+        mov ax,00F02h                   ; Не применяем вызовы наших процедур,
+        out dx,ax                       ;а сразу включаем через порт все планы.
+        xor ax,ax
+        mov di,GFX_PAGE_SIZE_B / 003h   ; 1/3 экрана и далее еще 80 по высоте.
+        mov cx,GFX_PAGE_SIZE_B / 006h   ; 002h - для 2/3, наши размеры косинуса.
+        rep stosw                       ; Быстрая очистка по всем бит-планам.
+        mov di,cos_table
+        xor dx,dx                       ; DX - координата X или счётчик.
+DrSC3:  mov al,COS_GREEN                ; Рисуем по точкам, сразу с градиентом.
+        mov ah,COS_BLUE
+        mov cx,COS_CENTER_Y             ; Начальное значение Y от центра.
+        sub cx,[di]                     ; Вычитаем или складываем.
+        ;mov bl,[cos_y_int]
+        ;shl bl,1
+        sub al,[cos_y_int]              ; Вычитаем сразу из индексов цвета,
+        sub ah,[cos_y_int]              ;размерность Y, или регистр или можно с
+        xor bx,bx                       ;множителем.
+DrSCT:  add cx,bx
+        call near VXSetPixel            ; Ставим точку первого цвета, вверх.
+DrSC4:  xchg al,ah                      ; Смена цветов вверх и вниз.
+        inc bx
+        sub cx,bx                       ; Вычитание смещения для координаты Y.
+        call near VXSetPixel            ; Cтавим точку второго цвета, вниз.
+DrSC5:  xchg al,ah
+        inc bx
+        sub al,COS_GRAD_OFFS            ; Изменение градиента, по константе.
+        sub ah,COS_GRAD_OFFS
+DrSCX:  cmp bx,COS_GRAD_SIZE            ; Размерность градиента.
+        jnz short DrSCT
+DrSCU:  add di,00002h
+        inc dx                          ; Следующая координата X.
+        cmp dx,COS_WIDTH
+        jnz short DrSC3                 ; Замыкаем цикл отрисовки.
         dec bp
-        jnz DrSCC
-
+        jnz DrSCI                       ; Замыкание цикла анимации.
+        pop es                          ; Восстнавливаем регистры и флаги.
         pop bp
         pop di
         pop si
@@ -1230,6 +1168,40 @@ DrSCP2: ;fldz
         pop ax
         popf
         ret
+
+control_reg     dw 00000h               ; Сохранение регистров 8087.
+cos_x           dd 0.0                  ; Текущее значение нашего параметра X.
+cos_x_step      dd +0.1                 ; Шаг изменения аргумента косинусу.
+cos_x_min       dd 0.1                  ; Не используется в сборке, но в коде.
+cos_x_max       dd 1.0
+cos_y           dd 08.0                 ; Текущая высота нашего косинуса.
+cos_y_int       dw 00004h               ; Текущее значение Y, только целое!
+cos_y_step      dd +1.0                 ; Шаг для Y.
+cos_y_min       dd 2.0                  ; Интервал(ширина) нашего графика.
+cos_y_max       dd 20.0
+fpu_data        dw 10h dup (00000h)     ; Для данных FPU.
+cos_table       dw GFX_SCR_WIDTH dup (00000h)
+sign_neg        dd -1.0                 ; Просто -1.0 для вычислений.
+pi_00           dd 0.00                 ; Табличные значения числа Пи.
+pi_14           dd 0.79
+pi_24           dd 1.57
+pi_34           dd 2.36
+pi_44           dd 3.14
+pi_54           dd 3.93
+pi_64           dd 4.71
+pi_74           dd 5.50
+pi_84           dd 6.28                 ; Полный цикл всё равно замыкается 2PI.
+
+anim_cos_txt    dw 0118h
+                dw 0004h
+                db '  REAL-TIME COSINE  '
+                db '  ON THE 8087 MATH  '
+                db 'A colored trigonometric cosine animation'
+                db '  using a slower formula with tangents  '
+                db '    and square root on the 8087 FPU!    '
+                db '  32-bit floating-point precision data  '
+                db '   and glowing gradients in real time   '
+                db '   with a few Mode-X bitplane tricks!   '
 
 
 ;5. Горящее пламя, авторы, ссылки и завершение.
@@ -1510,7 +1482,6 @@ screen_mode     db 000h
 %include "random.asm"
 %include "print_g.asm"
 %include "lines.asm"
-;%include "fm_opl.asm"
 
 ;To speed up assembly, remove.
 flame_data       db 000h
