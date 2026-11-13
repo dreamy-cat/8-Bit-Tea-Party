@@ -69,9 +69,9 @@ Demo1:  call near VXWaitVSync           ; Задержка в 0.5 - 1.0 секунды перед
         ;call near VXFadeOut
         ;call near Space3D              ; Вызов всех эффектов с переходом.
         ;call near VXFadeOut
-        call near CosineAnimation
-        ;call near VXFadeOut
-        ;call near FlamesOutro
+        ;call near CosineAnimation
+        call near VXFadeOut
+        call near FlamesOutro
         ;call near VXFadeOut
         mov cx,DEMO_DELAY
 Demo2:  call near VXWaitVSync
@@ -1204,48 +1204,33 @@ anim_cos_txt    dw 0118h
                 db '   with a few Mode-X bitplane tricks!   '
 
 
-;5. Горящее пламя, авторы, ссылки и завершение.
+; 5. Горящее пламя, наша команда, приветы под горячий Чай и завершение Демки! :)
+; Классический эффект "Пламя" с быстрыми сдвигами и арифметикой, без тяжелых
+;вычислений или математического сопроцессора. Основной цикл анимации также без
+;вызова процедур очистки или установки пикселя, данные напрямую в видеобуффер.
+; Цветовая палитра не вынесена в константы, по умолчанию желто-оранжевая,
+;старшая часть просто ярко желтая для генератора, младшая половина со снижением.
+; Итоговый вариант: 20с, 00230h; 25с 002D0h, 15с 001A0.
 
-
-FLAME_HEIGHT            EQU 050h        ;Flame max.
+FLAME_TIMER             EQU 00230h      ; Основной цикл анимации пламени.
+FLAME_HEIGHT            EQU 050h        ; Общая выосота пламени.
+; Размеры области памяти и смещения на экране размещения пламени, для ускорения.
 FLAME_SIZE              EQU FLAME_HEIGHT * GFX_SCR_WIDTH
-FLAME_SIZE_PLANE        EQU (FLAME_SIZE / 4) - 80       ;Without random line.
-FLAME_INTENSE           EQU 01h
-FLAME_SCR_ADDR          EQU GFX_BYTES_PER_LINE * 50h
+FLAME_SIZE_PLANE        EQU (FLAME_SIZE / 4) - GFX_BYTES_PER_LINE
+FLAME_SCR_ADDR          EQU GFX_BYTES_PER_LINE * (GFX_SCR_HEIGHT / 003h)
 FLAME_SRC_OFFS          EQU FLAME_SIZE - GFX_SCR_WIDTH
-FLAME_COLOR_MASK        EQU 0FFFFh
-FLAME_8BTP_COLOR        EQU 07Fh
-FLAME_TIMER             EQU 001A0h
-FLAME_TXT_SX            EQU 00004h
-FLAME_TXT_SY            EQU 00010h
-FLAME_TXT_X1            EQU 00000h
-FLAME_TXT_Y1            EQU 000A0h
-FLAME_TXT_NEXT          EQU 00Dh           ;Upper part of text lenght.
-FLAME_TXT_COL1          EQU 0007Fh
-FLAME_TXT_COL2          EQU 00Fh
-
-back_rect       dw 0000h, 009Fh, 013Fh, 00EFh   ;Background for text.
-
-flame_outro_txt dw 01AAh
-                dw 0004h
-                db '    8-BIT    '
-                db '  TEA PARTY  '            ;Add space to config.
-                db '   Classic flame using fast shifts...   '
-                db ' Create special for Demodulation 2021,  '
-                db '          by 8-Bit Tea Party!           '
-                db '    Thanks for watching and good Tea!   '
-                db '                                        '
-                db '  Code: Alexander Serov, Danila Peroff  '
-                db '           and Danya Potapov.           '
-                db '      Organizer: Dmitry Galashin.       '
-                db ' Thanks to our friends: Andrew, Vasily, '
-                db 'Vovan, Eugene, Konstantin, Roman and...!'
-
-
-;Классика пламени с быстрыми сдвигами и арифметкой.
+FLAME_COLOR_MASK        EQU 0FFFFh      ; Маска для цветов, полная палитра.
+FLAME_TITLE_X           EQU 00034h      ; Координаты заголовка в точках и
+FLAME_TITLE_Y           EQU 00010h      ;индекс цвета отображения.
+FLAME_TITLE_COLOR       EQU 07Fh
+FLAME_TITLE_LINE        EQU 018h        ; Следующая линия заголовка.
+FLAME_TEXT_X            EQU 00000h      ; Координаты и текста описания эффекта
+FLAME_TEXT_Y            EQU 000A0h      ;и наша команда.
+FLAME_TEXT_NEXT         EQU 012h        ; Смещение основного текста.
+FLAME_TEXT_COLOR        EQU 010h        ; Цвет близкий к темному, для контраста.
 
 FlamesOutro:
-        pushf
+        pushf                           ; Сохраняем регистры и флаги на стек.
         push ax
         push bx
         push cx
@@ -1254,176 +1239,150 @@ FlamesOutro:
         push di
         push bp
         push es
-
-;Print title on screen.
-
-        mov ah,10000010b
-        mov al,FLAME_TXT_NEXT
-        lea bx,flame_outro_txt
+        mov ax,00100h                   ; Очищаем только 0-ю видеостраницу.
+        call near VXClearVRAM
+        mov ah,10000010b                ; Выводим заголовк сразу полностью, в
+        mov al,FLAME_TEXT_NEXT / 002h   ;тёмный экран, компоненты всех цветов
+        mov bx,flame_outro_txt          ;пока что нулевые, но индексы верные.
         xor dx,dx
-        mov word [vx_cursor_x],FLAME_TXT_SX
-        mov word [vx_cursor_y],FLAME_TXT_SY
-        mov byte [vx_font_color],FLAME_8BTP_COLOR
+        mov word [vx_cursor_x],FLAME_TITLE_X
+        mov word [vx_cursor_y],FLAME_TITLE_Y
+        mov byte [vx_font_color],FLAME_TITLE_COLOR
+        call near VXPrintString         ; Печать заголовка с переносом на
+        add dl,al                       ;следующую строку в тексте.
+        mov word [vx_cursor_x],FLAME_TITLE_X
+        add word [vx_cursor_y],FLAME_TITLE_LINE
         call near VXPrintString
-        add dl,al
-        mov word [vx_cursor_x],FLAME_TXT_SX
-        call near VXPrintString
-
-;Draw background for text.
-
-        lea bx,back_rect
-        mov al,FLAME_8BTP_COLOR
-        mov ah,-01h
+        mov bx,back_rect                ; Рисуем фоновый прямоугольник с
+        mov al,FLAME_TITLE_COLOR        ;градиентом для вывода текста описания.
+        mov ah,-001h
         call near VXDrawRect
-
-;Set color palette for flames, from yellow to orange.
-
-        mov al,00h                      ;Создаём жёлто-ораньжевую палитру.
-        mov ah,03Fh
-        mov dl,03FH
-        mov dh,00h
-        mov cx,80h
-PalFl2: dec al
-        call near VXSetPalColor
-        test cx,0001h
+        call near VXWaitVSync           ; Быстрое отображение заголовка и фона.
+        mov al,000h                     ; Создаём жёлто-оранжевую палитру на
+        mov ah,03Fh                     ;последние 128 индексов и устанавливаем
+        mov dl,03FH                     ;компоненты красного и зеленого на
+        mov dh,000h                     ;максимум, а счётчик в CX.
+        mov cx,00080h
+PalFl2: dec al                          ; Уменьшаем индекс сразу на последние
+        call near VXSetPalColor         ;цвета и заполянем ярко желтым цветом
+        test cx,00001h                  ;для генерации линии пламени.
         jnz short PalFl1
         test dh,dh
         jz short PalFl1
         dec dh
 PalFl1: loop PalFl2
-        mov cx,40h
-PalFl4: dec al
-        call near VXSetPalColor
-        test cx,0001h
+        mov cx,00040h
+PalFl4: dec al                          ; Формируем индексы 64-127, уменьшаем
+        call near VXSetPalColor         ;интенсивность зеленого компонента на
+        test cx,00001h                  ;каждую четную интерацию индекса.
         jnz short PalFl3
         dec dl
 PalFl3: loop PalFl4
-        mov cx,040h
-PalFl6: dec al
-        call near VXSetPalColor
-        dec ah
-        test cx,0001h
+        mov cx,00040h
+PalFl6: dec al                          ; Формируем индексы 0-63, уменьшаем
+        call near VXSetPalColor         ;интенсивность уже красного цвета и
+        dec ah                          ;оставшегося зеленого чтобы в итоне
+        test cx,00001h                  ;0 индекс стал черным.
         jnz short PalFl5
         test dl,dl
         jz short PalFl5
         dec dl
 PalFl5: loop PalFl6
-
-;Flame effect without procedures, to release version.
-
-Start:  mov ax,GFX_SCR_ADDR
-        mov es,ax
+        mov ax,GFX_SCR_ADDR             ; Начало эффекта пламени, устанавливаем
+        mov es,ax                       ;адрес экрана на ES и флаг направления.
         cld
-        mov bp,FLAME_TIMER              ;Main cycle.
-        mov dx,1Ah
-
-        mov word [vx_cursor_x],FLAME_TXT_X1
-        mov word [vx_cursor_y],FLAME_TXT_Y1
-        mov byte [vx_font_color],FLAME_TXT_COL2
-
-FlameA: push dx
-        mov di,FLAME_SCR_ADDR
-        lea si,flame_data
-        mov bx,di
-        mov dx,si
+        mov bp,FLAME_TIMER              ; Таймер основного цикла и установка
+        mov dx,FLAME_TEXT_NEXT          ;параметров печать описания.
+        mov word [vx_cursor_x],FLAME_TEXT_X
+        mov word [vx_cursor_y],FLAME_TEXT_Y
+        mov byte [vx_font_color],FLAME_TEXT_COLOR
+FlameA: push dx                         ; Основной цикл, SI буфер источника или
+        mov di,FLAME_SCR_ADDR           ;данных пламени и DI смещение на экране.
+        mov si,flame_data
+        mov bx,di                       ; Сохраняем регистры и сдвигаем SI на
+        mov dx,si                       ;конец буфера данных.
         add si,FLAME_SIZE
-
-;Формируем линию-источник огня, самая нижняя в буфере.
-Flame0: dec si
-        dec si
+Flame0: dec si                          ; Формируем линию-источник огня, самая
+        dec si                          ;нижняя линия на экране.
         xor ax,ax
-        call near RandomSimple
+        call near RandomSimple          ; Генератор сразу двух точек, с маской.
         and ax,FLAME_COLOR_MASK
-        ;mov word ds:[si],0FFFFh
         mov [si],ax
         cmp si,flame_data + FLAME_SRC_OFFS
         ja short Flame0
-
-;Отображаем буфер пламяни на экран.
-        call near VXWaitVSync
-        mov al,00000001b
+        call near VXWaitVSync           ; Начало отрисовка кадра пламени по
+        mov al,00000001b                ;планам, через каждый 4-й пиксель.
 Flame2: mov di,bx
         mov si,dx
         call near VXSetPlanes
         mov cx,FLAME_SIZE_PLANE
-Flame1: movsb
-        add si,0003h
+Flame1: movsb                           ; Запись в буффер, смещение индексов с
+        add si,00003h                   ;учетом автоматического +4.
         loop Flame1
-        inc dx
-        shl al,1
-        test al,00010000b
+        inc dx                          ; Смещение на следующий слой +1 пиксель
+        shl al,1                        ;и следующий план для установки, до
+        test al,00010000b               ;4-го включительно.
         jz short Flame2
-
-;Обновляем буфер пламени для всех пикселей кроме исходной линии.
-        sub dx,0004h
-        mov si,dx
-        mov di,si
-        xor dx,dx
-        mov ax,dx
-        add si,GFX_SCR_WIDTH
-        mov bl,FLAME_HEIGHT - 1
-
-Flame3: mov dl,[si]
-        mov al,[si + 01h]
-        add dx,ax
-        shr dx,1
+        sub dx,00004h                   ; Обновляем буфер пламени для всех
+        mov si,dx                       ;пикселей кроме исходной линии.
+        mov di,si                       ; DX начало смещения в пикселях и
+        xor dx,dx                       ;оно же уходит в SI, DI.
+        mov ax,dx                       ; AX, DX = 0, для старшей части.
+        add si,GFX_SCR_WIDTH            ; SI - смещение на линию и вычитание
+        mov bl,FLAME_HEIGHT - 001h      ;исходной линии.
+Flame3: mov dl,[si]                     ; AL, DL - две соседние точки пламени.
+        mov al,[si + 001h]
+        add dx,ax                       ; Складываем и нацело делим пополам
+        shr dx,1                        ;через битовое смещение.
         jz short Flame4
-        dec dl
-Flame4: mov [di],dl
-        ;mov byte [di],07Fh
-        mov cx,GFX_SCR_WIDTH - 02h
-Flame5: inc si
+        dec dl                          ; Если DL нуль, то снова на максимум
+Flame4: mov [di],dl                     ;выкручиваем и смещаемся на следющие.
+        mov cx,GFX_SCR_WIDTH - 002h     ; Основая часть линии без крайних
+Flame5: inc si                          ;точек и смещаемся на следующие.
         inc di
-
-;Правило пламени, менять по вкусу...
-        xor dh,dh
+        xor dh,dh                       ; Правило пламени, менять по вкусу...
         mov dl,[di]
         mov al,[si]
-        add dx,ax
-        mov al,[si + 01h]
-        add dx,ax
-        mov al,[si - 01h]
-        add dx,ax
-        shr dx,1
+        add dx,ax                       ; Складываем текущую и следующую.
+        mov al,[si + 001h]
+        add dx,ax                       ; Складываем предудыдущую и следующую.
+        mov al,[si - 001h]
+        add dx,ax                       ; Складываем предыдущие результаты и
+        shr dx,1                        ;делим всё это на 4.
         shr dx,1
         test dl,dl
         jz short Flame6
-        dec dl
-Flame6: ;mov byte [di],0DFh
-        mov [di],dl
-        loop Flame5
+        dec dl                          ; Если нуль, то сбрасываем в максмум.
+Flame6: mov [di],dl
+        loop Flame5                     ; Замыкаем цикл центра линии.
         inc si
-        inc di
+        inc di                          ; Обрабатываем крайнюю правую точку.
         xor dh,dh
         mov dl,[si]
-        mov al,[si - 01h]
-        add dx,ax
+        mov al,[si - 001h]
+        add dx,ax                       ; Среднее с предыдущей, деленое пополам.
         shr dx,1
         jz short Flame7
-        dec dl
-Flame7: ;mov byte [di],03Fh
-        mov [di],dl
+        dec dl                          ; Сбрасываем цвет в максимум при нуле.
+Flame7: mov [di],dl
         inc si
         inc di
         dec bl
-        jnz Flame3
-
+        jnz short Flame3
         pop dx
-        push bx                                 ;
-        push ax
-        lea bx,flame_outro_txt
-        mov al,01h
+        push bx                         ; Печатаем один символ общего описания
+        push ax                         ;Демки и нашу команду! :)
+        mov bx,flame_outro_txt
+        mov al,001h
         mov ah,10000000b
         call near VXPrintString
-        inc dx
+        inc dx                          ; Следующий символ.
         pop ax
         pop bx
-
-        dec bp
-        jnz FlameA
-
+        dec bp                          ; Уменьшаем основной счётчик цикла и
+        jnz FlameA                      ;замыкаем, пока не нуль.
 Dem0:   pop es
-        pop bp
+        pop bp                          ; Восстанавливаем регистры и выходим.
         pop di
         pop si
         pop dx
@@ -1433,56 +1392,82 @@ Dem0:   pop es
         popf
         ret
 
+back_rect       dw 0000h, 009Fh         ; Прямоугольник с градиетом внизу
+                dw 013Fh, 00EFh         ;экрана, простые координаты углов.
+
+flame_outro_txt dw 01A2h                ; Заголовок краткий, описание полное.
+                dw 0004h
+                db '  8-BIT  '
+                db 'TEA PARTY'
+                db '    Thank you for watching our Demo!    '
+                db ' 4K lines of assembly code and hot Tea! '
+                db '                                        '
+                db '  Coded by Alexander Serov, Dan Peroff  '
+                db '           and Danya Potapov.           '
+                db '      Organized - Dmitry Galashin.      '
+                db ' Thanks to our friends:Andrews, Vasily, '
+                db '  Vovan, Eugene, Konstantin, Roman....  '
+                db '                                        '
+                db '       8-Bit Tea Party Demo, 2026       '
+                db '  CPU: 8086; FPU: 8087; Memory: 64KB+;  '
+                db '       VGA: Mode-X, 320x240x8bit.       '
+
+
 ; Процедура гашения экрана через палитру и синхронизацией по лучу.
 ;! Возможно стоит оформить процедуру как библиотечную.
+; Скорость уменьшения компонентов цветов реализовать через регистр, причем
+;возможно что лучше в сторону более медленной и/или быстрой.
+; Также подумать, что у нас снижение идет не до 0, а до параметра, т.е.
+;лучше может также добавить это как аргументы для процедуры.
+; Чтобы можно было замделять.
 
 VXFadeOut:
-        pushf
+        pushf                           ; Сохраняем флаги и регистры на стек.
         push ax
         push cx
         push dx
-        mov ax,0040h
-        mov cl,DEMO_FADE_SPEED
-        div cl
+        mov ax,00040h                   ; Всегда идем по полным 64 уровням
+        mov cl,DEMO_FADE_SPEED          ;6-битной палитры цветов, константа
+        div cl                          ;только скорсти. Деление 16-бит.
         mov cl,al
-SFadeO5:call near VXWaitVSync           ;Add extra sync if needed.
-        xor al,al
-SFadeO4:call near VXGetPalColor
+SFadeO5:call near VXWaitVSync           ; Можно дополнительно порегулировать
+        xor al,al                       ;вызовом еще ожидания, но лучше тогда
+SFadeO4:call near VXGetPalColor         ;подумать над изменением параметров.
         cmp ah,DEMO_FADE_SPEED
         jbe short SFadeO1
-        sub ah,DEMO_FADE_SPEED
-        jmp short SFadeO6
-SFadeO1:xor ah,ah
+        sub ah,DEMO_FADE_SPEED          ; Получаем каждый цвет по индексу и
+        jmp short SFadeO6               ;сравниваем все компонеты цвета с
+SFadeO1:xor ah,ah                       ;нашим параметром.
 SFadeO6:cmp dl,DEMO_FADE_SPEED
         jbe short SFadeO2
         sub dl,DEMO_FADE_SPEED
         jmp short SFadeO7
-SFadeO2:xor dl,dl
-SFadeO7:cmp dh,DEMO_FADE_SPEED
+SFadeO2:xor dl,dl                       ; Уменьшаем все компоненты в равной
+SFadeO7:cmp dh,DEMO_FADE_SPEED          ;степени и с одинаковой скоростью.
         jbe short SFadeO3
         sub dh,DEMO_FADE_SPEED
         jmp short SFadeO8
 SFadeO3:xor dh,dh
-SFadeO8:call near VXSetPalColor
-        inc al
-        jnz short SFadeO4
+SFadeO8:call near VXSetPalColor         ; Устанавливаем обновленный цвет по
+        inc al                          ;компонентам и увеличиваем индекс и
+        jnz short SFadeO4               ;замыкаем основной цикл по всей палитре.
         dec cl
-        jnz short SFadeO5
-        pop dx
+        jnz short SFadeO5               ; Замыкаем цикл на затенение,
+        pop dx                          ;восстанавливаем регистры и выходим.
         pop cx
         pop ax
         popf
         ret
 
-screen_mode     db 000h
+screen_mode     db 000h                 ; Сохраняем режим экрана.
 
-%include "vga_sys.asm"
-%include "dac.asm"
-%include "pixel.asm"
+%include "vga_sys.asm"                  ; Файлы прямого включения исходного
+%include "dac.asm"                      ;кода наших процедур. Отсутствует часть
+%include "pixel.asm"                    ;с поддержкой звука OPL2.
 %include "random.asm"
 %include "print_g.asm"
 %include "lines.asm"
 
-;To speed up assembly, remove.
+; Для ускорения ассемблирования, строку поменять (убрать в итоговой версии).
 flame_data       db 000h
-;flame_data      db FLAME_SIZE dup (0)
+;flame_data      db FLAME_SIZE dup (000h)
