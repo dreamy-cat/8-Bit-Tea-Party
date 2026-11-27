@@ -1,340 +1,299 @@
-;8-Бит Чаепитие! Лицензия: Creative Commons.
-;Платформа: 8086, VGA(256Kb), BIOS.
-;Инструменты: NASM(2.15).
-;Модули: VGA-X.
-;Авторы: Александр Серов (alexander.serov@protonmail.com) [1].
-;Быстродействие: примерное количество тактов для каждой процедуры.
-;Память: процед_1 = N, процед_2 занимает М байт.
+; 8-Бит Чаепитие! Лицензия: Creative Commons(BY-NC-SA).
+; Платформа: 8086, VGA(256Kb+), BIOS.
+; Процедуры: VGA-X.ASM.
+; Авторы: Александр Серов (alexander.serov@protonmail.com) [1].
 
-;System procedures for VGA Mode-X, hardware level ports.
-;See documentation: IBM VGA XGA Technical Reference, 1992.
+; Условно системные процедуры для видеорежима X, адаптера VGA. Документацию,
+;ссылки и общую информацию смотри в заголовочном файле. Многие команды для
+;адаптера, выводятся в порты одной командой out dx,ax, быть внимательней.
 
-;File with all parameters to CRT Controller of VGA adapter.
-;Using to setup Mode-X, 320 horizontal, 240 vertical, 256 colors.
-;Format: PORT 0x3C2...
-;INDEX register VGA, first DB, see doc for VGA.
-;DATA, use AX register and OUT DX,AX command.
-;Tweaker by Robert Schmidt.
+; Задачи на следующую версию:
+; - разделить все процедуры в этом файле на отдельные файлы;
+; - постараться применить все параметры при установке режима X, ане от 013h;
+; - вынести глобальные данные в общий(заголовочный) файл vga-x.asm;
+; - доработать для полноты SetActDispPage - младшие 8бит адреса не установлены;
+; - процедуру VXClearVRAM доработать по смещениям или даже области;
+; - исправить на боле логичную очистку хвоста в процедуре ClearVRAM;
+; - подумать над копией данных из видеобуфера в системную память напрямую;
+; - сверить количество параметров в таблице ЭЛТ, в SetModeX;
+; - провести эксперимент с прерываниями от видеоадаптера IRQ2;
+; - для секвенсера по процедурам, возможно стоит добавить ожидание с опросом.
 
-;Файл со всеми параметрами для контроллера электронно-лучевой трубки, при
-;настройке режима Х, адаптера VGA, размеры 320*200 точек и 256 цветов.
-;Формат: порты: 0x3C2 и т.д.
-;Индекс регистра адаптера в первой строке.
-;Данные - параметр для записи в порт.
-;Удобней всего использовать AX аккумулятор и команду OUT DX,AX.
-
-;VGA video memory layout. ISA 16 bit data bus, 256Kb model.
-;4 maps(0..3), 64Kb each, total 256Kb(standard).
-;Config: 64Kb from 0xA000 address, 32Kb from B000 or B800(other adapters).
-;Planes: 4 bits for every pixel in every plane.
-;Blue-Green-Red-Intensity, 16 colors.
-
-;List of procedures in alphabetical order, without prefix 'VX'.
-
-;DisplayPage            Set video page to display from 0 to 2.
-;SetModeX               Setup Mode-X, 320x240 pixels and 256 colors.
-;SetPlanes              Set plane mask to write 8 bit color, bits from 0 to 3.
-;WaitVSync              Await vertical synchronization signal from CRT.
-
-;Список процедур в алфавитном порядке, без префикса 'VX' и краткое описание.
+; Общий список процедур в этом файле, без префикса 'VX', в алфавитном порядке.
 
 ;DisplayPage            Смена отображаемой страницы(смещения) экрана.
 ;SetModeX               Установка видеорежима Х, 320х240х256 с плоскостями.
 ;SetPlanes              Разрешение на запись в слои видеопамяти адаптера VGA.
 ;WaitVSync              Ожидание сигнала от ЭЛТ, о начале обратного хода луча.
+;DisplayPage            Set video page to display from 0 to 2.
+;SetModeX               Setup Mode-X, 320x240 pixels and 256 colors.
+;SetPlanes              Set plane mask to write 8 bit color, bits from 0 to 3.
+;WaitVSync              Await vertical synchronization signal from CRT.
 
-;TODO:
-;Copy from/to main memory to VGA video memory.
-;Clear page(s).
+; Включение файла условного заголовка, статичные данные пока прямо здесь.
+%include "VGA-X.ASM"
 
-;Library start, include source files with names.
+; Глобальные переменные для библиотеки, занимают память, видны глобально.
 
+vx_scr_active   dw 00000h               ; Смещение активной и отображаемой
+vx_scr_display  dw 00000h               ;страницы на экране видеобуффера.
 
-%include "VGA-X.ASM"    ;NASM, include header of library.
-
-;Global data for all VGA-X procedures, using memory.
-;Глобальные переменные для библиотеки, занимает память, видна глобально.
-
-vx_scr_active   dw 0000h        ;Смещение активной страницы
-vx_scr_display  dw 0000h        ;Смещение отображаемой страницы на экране.
-
-;Procedures in alphabetical order.
-;Процедуры библиотеки в алфавитном порядке.
-
-;Procedure set display page, al - 0..2 - page index;(see doc)
-;Процедура установки активной страницы(смещения) в памяти и страницы
+; Процедура установки активной страницы(смещения) в памяти и страницы
 ;отображения экрана из памяти. Проверка на допустимость выполняется для
-;активной и отображаемой страницы одновременно.
-;Вход:
+;активной и отображаемой страницы одновременно, т.е. если хотя бы один параметр
+;не верен, предел сравнения с общим количеством страниц.
+; Вход:
 ;AL     биты:
 ;0..1   номер активной страницы, 0..2;
 ;2..3   номер отображаемой страницы, 0..2;
 ;4..7   резерв;
-;Выход: установка .
+; Выход: установка глобальных переменных vx_scr_active и vx_scr_display.
 
 VXSetActDispPage:
-        pushf
+        pushf                           ; Сохраняем флаги и регистры.
         push ax
         push dx
-        mov ah,al                       ;
+        mov ah,al                       ; Сохраняем копию активно страницы.
         and al,00000011b
-        cmp al,GFX_ALL_PAGES
+        cmp al,GFX_ALL_PAGES            ; Проверяем предел активной страницы.
         jnc short SAcDiP0
         mov al,ah
-        shr al,1
-        shr al,1
-        cmp al,GFX_ALL_PAGES
+        shr al,001h                     ; Смещаем для сравнения биты 2 и 3.
+        shr al,001h
+        cmp al,GFX_ALL_PAGES            ; Проверяем предел отображаемых страниц.
         jnc short SAcDiP0
-        mov al,ah                       ;
+        mov al,ah
         xor ah,ah
-        push ax
-        and al,00000011b
-        mov dx,GFX_PAGE_SIZE_B
-        mul dx                          ;AH High 8-bit of 16bit screen offs.
-        mov [vx_scr_active],ax          ;Save screen offset to global.
+        push ax                         ; Вычисляем 16-бит смещение путём
+        and al,00000011b                ;умножения на количество байт в
+        mov dx,GFX_PAGE_SIZE_B          ;странице и сохраняем результат в
+        mul dx                          ;глобальные данные, выше чем 38400
+        mov [vx_scr_active],ax          ;быть не может.
         pop ax
-        shr al,1
-        shr al,1
-        mov dx,GFX_PAGE_SIZE_B
-        mul dx
-        mov [vx_scr_display],ax
-        mov dx,VGA_CRT_ADDR             ;
-        mov al,VGA_START_HIGH_ADDR
-        out dx,ax
-SAcDiP0:pop dx
-        pop ax
-        popf
+        shr al,001h
+        shr al,001h                     ; Получаем отображаемую страницу или
+        mov dx,GFX_PAGE_SIZE_B          ;биты 2 и 3, аналогично вычисляем
+        mul dx                          ;смещение, умножая на размер страницы и
+        mov [vx_scr_display],ax         ;сохраняем глобальные данные.
+        mov dx,VGA_CRT_ADDR
+        mov al,VGA_START_HIGH_ADDR      ; AL заменяем на ригистр, т.к. он
+        out dx,ax                       ;всегда будет нуль, а регистр AH у нас
+SAcDiP0:pop dx                          ;результат вычислений. Подумать над
+        pop ax                          ;обязательной установкой младших 8бит.
+        popf                            ; Восстанавливаем регистры и выходим.
         ret
-        
-; ! Доработать со смещениями.
-; Процедура очистки всей страницы экрана в режиме Х. Простая проверка на ноль.
-;Желательно не использовать вызовы дополнительных процедур.
-;Вход:
-;AL     индекс цвета для очистки всего экрана, 0..255;
+
+; Процедура очистки всей(ех) страниц(ы) экрана в режиме Х. Простая проверка на
+;ноль и возможность очистки остатка буфера сверх 3 страниц.
+; Вход:
+;AL     индекс цвета для очистки всего экрана, 0..0FFh;
 ;AH     биты:
 ;0..2   каждый бит если установлен, то очистить соответствующую страницу;
 ;3      заполнить-ли оставшийся хвост от 256Кб, 31744 байта;
 ;4..7   резерв.
-;Выход: заполненная видеопамять VGA.
+; Выход: заполненная видеопамять VGA адаптера.
 
 VXClearVRAM:
-        pushf
+        pushf                           ; Сохраняем флаги и регистры.
         push ax
         push cx
         push dx
         push es
-        mov dx,GFX_SCR_ADDR
+        mov dx,GFX_SCR_ADDR             ; ES - сегментный адрес видео-буффера.
         mov es,dx
-        mov dh,ah
-        mov dl,dh
-        and dx,0000100000000111b
+        mov dh,ah                       ; DX - двойная копия параметра AH.
+        mov dl,dh                       ; Возможно немного еще оптимизировать.
+        and dx,0000100000000111b        ; Только биты страниц и остатка.
         mov ah,al
-        mov al,00001111b
-        call near VXSetPlanes
-        mov al,ah                       ;Исправление после вещания 20.
-        xor di,di
+        mov al,00001111b                ; Установка всех планов на запись
+        call near VXSetPlanes           ;одноврменно для ускорения.
+        mov al,ah                       ; Исправление после вещания 20 и что
+        xor di,di                       ;это было, теперь сложно вспомнить... :)
         cld
-ClVRAM3:shr dl,1
-        jnc short ClVRAM1
-        mov cx,GFX_PLANE_SIZE_W
-        rep stosw
-        jmp short ClVRAM2
-ClVRAM1:add di,GFX_PLANE_SIZE_B
-ClVRAM2:test dl,dl
-        jnz short ClVRAM3
+ClVRAM3:shr dl,001h                     ; Основной цикл, вытесняем младшие биты
+        jnc short ClVRAM1               ;во флаг CF и если он установлен, то
+        mov cx,GFX_PLANE_SIZE_W         ;очищаем по словам буффер, AX цвет.
+        rep stosw                       ; Иначе переходим к проверке следующего
+        jmp short ClVRAM2               ;план, DI после очистки верное.
+ClVRAM1:add di,GFX_PLANE_SIZE_B         ; Или прибавляем на размер страницы,
+ClVRAM2:test dl,dl                      ;проверяем не осталось-ли страниц и
+        jnz short ClVRAM3               ;замыкаем цикл.
         test dh,dh
-        jz short ClVRAM4
-        mov cx,di
-        neg cx
-        rep stosw
-ClVRAM4:pop es
-        pop dx
+        jz short ClVRAM4                ; Проверяем флаг очистки хвоста буффера
+        mov cx,di                       ;и если он есть, то очищаем полностью,
+        neg cx                          ;всё то, что не вошло в страницы.
+        rep stosw                       ; Всё таки переделать на более логично,
+ClVRAM4:pop es                          ;чтобы очищался именно остаток, а не
+        pop dx                          ;всё что кроме(сверх) нужных страниц.
         pop cx
-        pop ax
+        pop ax                          ; Восстанавливаем регистры и выходим.
         popf
         ret
 
-; Установка видео-режима 'Mode-Х', разрешением 320 240 точек и 256 цветов по таблице.
-;Краткая версия процедуры, в основе вещания и книги М.Абраша.
-;Меняются только те параметры, которые необходимы, остальное подтягивается
-;с использованием стандартного режима 13h. Используем пока этот вариант, но
+; Установка видео-режима Х, разрешением 320 на 240 точек и 256 цветов по
+;индексной таблице или палитре. Краткая версия процедуры, в основе вещания и
+;книги М.Абраша., смотри подробнее в файле заголовка.
+; Меняются только те параметры, которые необходимы, остальное подтягивается
+;с использованием стандартного режима 013h. Используем пока этот вариант, но
 ;возможны некоторые неявные моменты, поэтому быть внимательным при оталадке.
-;Входны данные: используются глобальные константы параметров экрана.
-;Выход: установленный видео режим X 320*240*256.
+; Вход: используются глобальные константы параметров экрана и адаптера.
+; Выход: установленный видео режим X и глобальные данные.
 
 VXSetModeX:
-        pushf
+        pushf                           ; Сохраняем флаги и регистры.
         push ax
         push cx
         push dx
         push si
-
-;Установим стандартный режим 13H и будем модифицировать только необходимое.
-
-        mov ax,13h
-        int 10h
-
-;Разбить пиксильные планы по отдельности, снова 0..3, регистр 04, док. 2-53.
-
-        mov dx,VGA_SEQUENCER_ADDR
-        mov ah,00000110b        ;Using all planes and extended to 256Kb mem.
-        mov al,04h
+        mov ax,00013h                   ; Установим стандартный режим 013H и
+        int 010h                        ;будем модифицировать необходимое.
+        mov dx,VGA_SEQUENCER_ADDR       ; Разбиваем пиксельные планы, режим
+        mov ah,00000110b                ;несвязный и снова планы 0..3, см. 2-53.
+        mov al,004h                     ; Используя все планы мы сможем
+        out dx,ax                       ;адресовать полные 256Кб адаптера.
+        mov dx,VGA_MISC_WRITE           ; Выберем 480 линий и селектор порта
+        mov al,11100011b                ;для ЭЛТ и других регистров, док. 2-43.
+        out dx,al                       ; 480 линий делить / 2, будет 240.
+        mov dx,VGA_SEQUENCER_ADDR       ; Сброс или рестарт секвенсера, через
+        mov al,000h                     ;регистр сброса, необязательно но
+        mov ah,00000011b                ;желтаельно синхронный и асинхронный.
         out dx,ax
-
-;Выберем 480 линий и селектор порта для ЭЛТ, док. 2-43.
-
-        mov dx,VGA_MISC_WRITE
-        mov al,11100011b        ;480lines, 640/320pix, ram and 3DA - port.
-        out dx,al               ;8 bit output.
-
-;Сброс или рестарт секвенсера, необязательно, но лучше подстарховаться.
-
-        mov dx,VGA_SEQUENCER_ADDR
-        mov al,00h              ;Reset register.
-        mov ah,00000011b        ;Reset sync and async.
-        out dx,ax
-
-;Снимем защиту от записи в регситры с индексами 0-7, док.
-
-        mov dx,VGA_CRT_ADDR
-        mov al,11h              ;Vertical retrace end, register.
-        out dx,al
+        mov dx,VGA_CRT_ADDR             ; Снимем защиту от записи в регистры
+        mov al,011h                     ;с индексами 0-7, см. документацию и
+        out dx,al                       ;сохраняем в регистр обратного хода.
         inc dx
-        in al,dx                ;Input from port current value.
-        and al,01111111b        ;Remove protection
+        in al,dx                        ; Загружаем текущее значение по индексу,
+        and al,01111111b                ;выключаем старший бит и обратно.
         out dx,al
-
-;Установка параметров ЭЛТ по таблице. Осторожно, опасно для реального железа!
-;Страницы 2-55, док.
-
-        mov dx,VGA_CRT_ADDR
-        lea si,vga_crt_mode_x
-        mov cx,0Ah              ;May be variable.
+        mov dx,VGA_CRT_ADDR             ; Установка параметров ЭЛТ по таблице,
+        mov si,vga_crt_mode_x           ;смотри документацию 2-55.
+        mov cx,00Ah                     ; Сверить количество параметров!
         cld
-SetMX1: lodsw                   ;Load parameter in table.
-        out dx,ax
+SetMX1: lodsw                           ; Загружаем пару индекс/данные в AX и
+        out dx,ax                       ;отправляем значение порт DX.
         loop SetMX1
-
-        pop si
+        pop si                          ; Восстанавливаем регистры и выходим.
         pop dx
         pop cx
         pop ax
         popf
         ret
 
-;Table for VGA adapter parameters.
+; Таблца параметров контроллера ЭЛТ, в формате регистр и значения по битам.
+vga_crt_mode_x:
 
-vga_crt_mode_x:         ;[bits]
+        db 006h         ; Всего вертикальных линий, 10 бит.
+        db 00001101b    ;[0..7] младшие 8 бит, количества линий.
 
-        db 06h          ;Vertical total lines, 10-bit minus 2.
-        db 00001101b    ;[0..7] lower 8-bit of total lines.
+        db 007h         ; Переполнение, дополнительные биты для регистров.
+        db 00111110b    ;[0,5] всего вертикальных линий биты 8 и 9.
+                        ;[2,7] 8,9 биты регистра 010h, старт обратного хода.
+                        ;[1,6] 8,9 биты регистра 012h, конец вкл. экрана;
+                        ;[3] 8 бит регистра 015h, старт вертикального откл.
+                        ;[4] регистр линии сравнения(отсечения) 018h, вкл.
 
-        db 07h          ;Overflow, bits for extra indexes.
-        db 00111110b    ;[0,5] - total lines, as 8,9-bits.
-                        ;[2,7] - 8,9 bits regiser 10h, vertical retrace start.
-                        ;[1,6] - 8,9 bits register 12h, vertical display-en;
-                        ;[3] - 8-bit register 15h, vertical blank, ON.
-                        ;[4] line compare register 18h, ON.
+        db 009h         ; Максимальное количество линий сканирования.
+        db 01000001b    ;[0..4] сканирований на каждый ряд символа = 1.
+                        ;[5] старт вертикально отключения, бит 9, рег. 015h.
+                        ;[6] линии сравнения 9-й бит регистра 018h.
+                        ;[7] двойное сканирование, 400 или 200 линий, откл,
 
-        db 09h          ;Maximum scan lines.
-        db 01000001b    ;[7] no double, [6] 9th bit line compare ON,
-                        ;[5] start vertical blanking 9-bit off,
-                        ;[0..4] - character lines row = 1.
-        db 10h          ;Vertical retrace start.
-        db 11101010b    ;[0..7] lower 8-bit from 9-bit retrace position, 234.
+        db 010h         ; Начало обратного хода луча.
+        db 11101010b    ;[0..7] младшие 8(9) бит, значение обртаного хода, 234.
 
-        db 11h          ;Vertical retrace end.
-        db 10101100b    ;[7] protect registers 0-7 for write;
-                        ;[6] refresh cycle, page 2-70.
-                        ;[5] enable vertical interrupt, IRQ2.
-                        ;[4] clear interrupt bit, flip-flop after.
-                        ;[3..0] vertical retrace end, compare with start.
+        db 011h         ; Окончание обратного хода луча.
+        db 10101100b    ;[0..3] конец обр.хода, сравнение с началом, когда отк.
+                        ;[4] очистка бита прерывания после сигнала(разово).
+                        ;[5] включение прерывания на верт.ход, IRQ2.
+                        ;[6] цикл обновления(совместимость), страница 2-70.
+                        ;[7] защита регистров 0-7 на запись;
 
-        db 12h          ;Vertical display-enable end,
-        db 11011111b    ;[0..7] 8-bit position of 10-bit lines minus 1, 479.
+        db 012h         ; Позиция окончания вертикального отображения.
+        db 11011111b    ;[0..7] младшие 8бит из 10-бит линия, -1, 479.
 
-        db 14h          ;Underline location, double word mode, count by 4.
-        db 00h          ;clear all.
+        db 014h         ; Положение подчеркивания, режим двойного слова и счёт.
+        db 00000000b    ; Всё очищено.
 
-        db 15h          ;Start vertical blank,
-        db 11100111b    ;[0..7] 8-bit position of 10-bit, minus 1, 487.
-                        ;horizontal scan lines, counter.
+        db 015h         ; Старт вертикального отключения.
+        db 11100111b    ;[0..7] младшие 8-бит из 10, линий -1, 487.
+                        ; С учётом горизонтального счётчика(неясно).
 
-        db 16h          ;End vertical blanking,
-        db 06h          ;[0..7] 8-bit position horizontal line count plus
-                        ;Start Vertical blanking, minus 1, 487+6-1 = 492.
+        db 016h         ; Окончание вертикального отключения.
+        db 06h          ;[0..7] 8-бит из 10, позиция счётчика гориз. линий,
+                        ; Старт отклчения + 6 - 1, 487 + 6 - 1 = 492.
 
-        db 17h          ;CRT mode control, page 2-74.
-        db 11100011b    ;[7] hardware reset;
-                        ;[6] word/byte addressing, using byte mode ON;
-                        ;[5] address wrap field, CGA compatibility, ON;
-                        ;[4] -
-                        ;[3] count by 2, 0 - clock char, 1 - div 2;
-                        ;[2] horizontal retrace select, counter or 1- div 2;
-                        ;if 1, than 10-bit max 1024 lines, can be 2048 lines.
-                        ;[1] select row scan, 1 - bit 14 address counter is
-                        ;source.
-                        ;[0] select the source of bit 13 multiplexier,
+        db 017h         ; Регистр режима управления ЭЛТ, см. 2-74.
+        db 11100011b    ;[0] выбор источника 13-го быит мультиплексора,
                         ;1 - bit 13 address counter as source, 0 row count;
                         ;CGA 640x200 pixels, example.
+                        ;[1] выбор ряда сканирования, 1 бит, вкл.
+                        ; 14 address counter is source.
+                        ;[2] выбор горизонтально счётка 1 - дел / 2;
+                        ;if 1, тогда 10-бит это 1024 линии, нет - 2048 линий.
+                        ;[3] счётчик тактов на 2, 0 - такты на 1, 1 - дел/2;
+                        ;[4] -
+                        ;[5] адресная обертка для CGA совместимости, вкл;
+                        ;[6] адресация байт/слово, режим байтовый вкл;
+                        ;[7] аппаратный сброс.
 
-;Set planes for write in VGA X-MODE.
-;al - bits 0..3 if set, then ready to write.
+; Установка активных на запись планов для режима X.
+; Вход: [биты]:
+;AL     [0..3] если бит установлен, то соответствующий план включается.
 
 VXSetPlanes:
-        pushf
+        pushf                           ; Сохраняем флаги и регистры.
         push ax
         push dx
-        mov dx,VGA_SEQUENCER_ADDR
-        xchg ah,al
-        and ah,00001111b                ;Mask for 4 planes.
-        mov al,02h
-        out dx,ax                       ;16 bit out.
+        mov dx,VGA_SEQUENCER_ADDR       ; Возможно стоит добавить паузу для
+        xchg ah,al                      ;ожидания пред. команды.
+        and ah,00001111b                ; Маска только для планов.
+        mov al,002h
+        out dx,ax                       ; Устанавливаем в 16-бит сразу.
         pop dx
-        pop ax
+        pop ax                          ; Восстанавливаем регистры и выходим.
         popf
         ret
 
-;Get planes for read in VGA X-MODE.
-;al - plane index to read, only single mode.
+; Чтение установленных планов активных в режиме X.
+; Вход:
+;AL     индекс плана, который ожидается, но он кажется не читается.
 
 VXGetPlane:
         pushf
-        push ax
+        push ax                         ; Сохраняем регистры и флаги.
         push dx
-        mov dx,VGA_GRAPHICS_ADDR
-        and al,00000011b                ;Mask for 0..3 values.
+        mov dx,VGA_GRAPHICS_ADDR        ; Модуль управления графикой.
+        and al,00000011b                ; Маска для значений от 0..3.
         xchg ah,al
-        mov al,04h
-        out dx,ax                       ;16 bit out.
+        mov al,004h                     ; Выводим индекс нужный и индекс
+        out dx,ax                       ;регистра как 16бит.
         pop dx
-        pop ax
+        pop ax                          ; Восстанавливаем рагистры и выходим.
         popf
         ret
 
-;Procedure wait for vertical Sync, VGA.
-;Процедура ожидания сигнала от модуля ЭЛТ на возникновения обратного хода луча, с
-;небольшой подстраховкой, если мы уже наткнулись на сигнал(Абраш).
+; Процедура ожидания сигнала от модуля ЭЛТ на возникновения обратного хода луча,
+;с небольшой подстраховкой, если мы уже наткнулись на сигнал(Абраш).
 ;Вход:  ничего на вход.
-;Выход: блокирует ожиданием выполнение основного кода, до прихода сигнала.
+;Выход: блокирует ожиданием выполнение основного кода, до прихода сигнала ЭЛТ.
 
 VXWaitVSync:
         pushf
-        push ax
+        push ax                         ; Сохраняем регистры и флаги.
         push dx
-        mov dx,VGA_INPUT_STATUS_1
-WaitV1: in al,dx                 ;if we in vsync signal. (Abrash)
-        and al,00001000b         ;for DAC read.
+        mov dx,VGA_INPUT_STATUS_1       ; Запрашиваем из порта статус 1, и
+WaitV1: in al,dx                        ;если мы уже находимся в сигнале то
+        and al,00001000b                ;продолжаем ждать для корректности DAC.
         jnz short WaitV1
-WaitV2: in al,dx                 ;Do faster version.
+WaitV2: in al,dx                        ; Опрашиваем бит прихода сигнала.
         and al,00001000b
         jz short WaitV2
-        pop dx
+        pop dx                          ; Восстанавливаем регистры и выходим.
         pop ax
         popf
         ret
 
-
+; ! Вынести и оформить в файл DAC.ASM.
 ; Функция установки (замены) одиночного цвета в палитре видеоадаптера.
 ; Назначает цвету с заданным индексом новые компоненты: Read, Green, Blue.
 ; Вход:
@@ -499,12 +458,13 @@ data_x_graph:   db 05h, 40h
 data_x_attrib:  db 10h, 41h
                 db 13h, 00h
 
-;20.11.21, А.С.: Добавлена процедура заполнения видеопамяти адаптера.
-;02.10.21, А.С.: Смена отображаемой и активной страницы теперь одновременно.
-;25.09.21, А.С.: Небольшие правки по оформлению кода и комментариев.
-;04.09.21, А.С.: Смена видео страниц и синхронизация обратного хода луча:
-;                SetDisplayPage, WaitVSync. Загрузка файла в режиме Х.
-;28.08.21, А.С.: Загрузка файла в видеопамять и настройка палитры через
-;                BIOS, стандартный видеорежим 320x200x256.
-;07.08.21, А.С.: Установка режима Х и простое тестирование видеопамяти.
-;                Первая версия SetModeX и дополнительно SetModeXFull.
+;27.11.26, [1]: Исправлены мелкие недочеты, код оформлен и добавлены каменты.
+;20.11.21, [1]: Добавлена процедура заполнения видеопамяти адаптера.
+;02.10.21, [1]: Смена отображаемой и активной страницы теперь одновременно.
+;25.09.21, [1]: Небольшие правки по оформлению кода и комментариев.
+;04.09.21, [1]:  Смена видео страниц и синхронизация обратного хода луча:
+;               SetDisplayPage, WaitVSync. Загрузка файла в режиме Х.
+;28.08.21, [1]:  Загрузка файла в видеопамять и настройка палитры через
+;               BIOS, стандартный видеорежим 320x200x256.
+;07.08.21, [1]:  Установка режима Х и простое тестирование видеопамяти.
+;               Первая версия SetModeX и дополнительно SetModeXFull.
